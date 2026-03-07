@@ -1,0 +1,69 @@
+name: phosphor
+description: A retro AI terminal emulator. The future, rendered in phosphor.
+publish_to: 'none'
+version: 0.1.4
+
+environment:
+  sdk: ^3.6.0
+  flutter: '>=3.27.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Terminal emulation
+  xterm: ^4.0.0
+  flutter_pty: ^0.4.1
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Routing
+  go_router: ^14.8.1
+
+  # Shader utilities
+  flutter_shaders: ^0.1.3
+
+  # Storage
+  shared_preferences: ^2.3.4
+
+  # Audio
+  audioplayers: ^6.1.0
+
+  # Networking
+  http: ^1.2.2
+
+  # Encryption (AES-256-GCM + HKDF for multiplayer E2E)
+  cryptography: ^2.7.0
+
+  # Window management
+  window_manager: ^0.4.3
+
+  # Utilities
+  uuid: ^4.5.1
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  riverpod_generator: ^2.6.3
+  build_runner: ^2.4.14
+  custom_lint: ^0.7.1
+  riverpod_lint: ^2.6.3
+
+flutter:
+  uses-material-design: false
+
+  fonts:
+    - family: PhosphorMono
+      fonts:
+        - asset: assets/fonts/PhosphorMono.ttf
+
+  shaders:
+    - shaders/crt.frag
+
+  assets:
+    - assets/sounds/
+    - assets/sounds/keystrokes/

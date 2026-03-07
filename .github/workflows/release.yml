@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter config --enable-macos-desktop
+      - run: flutter pub get
+      - run: flutter build macos --release
+
+      - name: Zip macOS app
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r phosphor-macos-arm64.zip Phosphor.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: build/macos/Build/Products/Release/phosphor-macos-arm64.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - run: flutter build linux --release
+
+      - name: Archive Linux bundle
+        run: |
+          cp linux/install.sh build/linux/x64/release/bundle/
+          cd build/linux/x64/release/bundle
+          tar czf phosphor-linux-x86_64.tar.gz *
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: build/linux/x64/release/bundle/phosphor-linux-x86_64.tar.gz
+
+  release:
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            phosphor-macos-arm64.zip
+            phosphor-linux-x86_64.tar.gz
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ### macOS (Apple Silicon)
+
+            1. Download `phosphor-macos-arm64.zip`
+            2. Unzip it
+            3. Drag `Phosphor.app` to your Applications folder
+            4. Remove the quarantine attribute (required for unsigned apps):
+               ```bash
+               xattr -dr com.apple.quarantine /Applications/Phosphor.app
+               ```
+
+            ### Linux (x86_64)
+
+            1. Download `phosphor-linux-x86_64.tar.gz`
+            2. Extract and run the installer:
+               ```bash
+               tar xzf phosphor-linux-x86_64.tar.gz
+               ./install.sh
+               ```
+            3. This installs to `~/.local/share/phosphor/`, adds `phosphor` to your PATH via `~/.local/bin/`, and creates a desktop entry for your app launcher.
+
+            ---
