@@ -4,7 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/theme/crt_colors.dart';
 import '../../../app/theme/phosphor_theme.dart';
 import '../../../core/services/ai_service.dart';
-import '../../terminal/presentation/widgets/crt_overlay.dart';
+
+/// CRT effect intensity (0.0 = clean, 1.0 = maximum retro).
+/// Lives here (not in crt_overlay.dart) because settings state must not
+/// depend on presentation widgets.
+final crtIntensityProvider = StateProvider<double>((ref) => 0.75);
 
 /// CRT effect settings — controls shader uniforms.
 class CrtSettings {

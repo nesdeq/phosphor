@@ -1,7 +1,7 @@
 name: phosphor
 description: A retro AI terminal emulator. The future, rendered in phosphor.
 publish_to: 'none'
-version: 0.1.4
+version: 0.1.5
 
 environment:
   sdk: ^3.6.0

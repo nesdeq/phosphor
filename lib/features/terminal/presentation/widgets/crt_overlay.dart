@@ -7,9 +7,6 @@ import 'package:flutter_shaders/flutter_shaders.dart';
 
 import '../../../../features/settings/providers/settings_provider.dart';
 
-/// CRT intensity setting (0.0 = clean, 1.0 = maximum retro).
-final crtIntensityProvider = StateProvider<double>((ref) => 0.75);
-
 /// Wraps a child widget with CRT post-processing effects:
 /// scanlines, phosphor glow, barrel distortion, chromatic aberration, flicker.
 class CrtOverlay extends ConsumerStatefulWidget {

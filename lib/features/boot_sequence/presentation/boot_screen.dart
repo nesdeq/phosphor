@@ -109,7 +109,7 @@ class _BootScreenState extends ConsumerState<BootScreen> {
 
     // Ready
     await _delay(300);
-    await _addLine('Welcome to PHOSPHOR Terminal v0.1.4');
+    await _addLine('Welcome to PHOSPHOR Terminal v0.1.5');
     await _addLine('The future of the terminal, rendered in phosphor.');
     await _addLine('');
     await _addLine('Ready.', style: _BootStyle.bright);

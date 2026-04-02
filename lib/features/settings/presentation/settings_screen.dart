@@ -5,7 +5,6 @@ import '../../../app/theme/crt_colors.dart';
 import '../../../app/theme/phosphor_theme.dart';
 import '../../../app/widgets/crt_dialog.dart';
 import '../../../core/services/ai_service.dart';
-import '../../terminal/presentation/widgets/crt_overlay.dart';
 import '../providers/settings_provider.dart';
 
 /// DOS-style settings panel overlay.
