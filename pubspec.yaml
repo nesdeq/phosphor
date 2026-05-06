@@ -37,7 +37,7 @@ dependencies:
   cryptography: ^2.7.0
 
   # Window management
-  window_manager: ^0.4.3
+  window_manager: ^0.5.1
 
   # Utilities
   path: ^1.9.0
