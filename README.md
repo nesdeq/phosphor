@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nesdeq/phosphor/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nesdeq/phosphor?logo=github&color=blue"></a>
+  <a href="https://github.com/nesdeq/phosphor/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.1.6-blue?logo=github"></a>
   <a href="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="License: GPL-2.0" src="https://img.shields.io/badge/license-GPL--2.0-blue"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue">
