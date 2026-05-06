@@ -17,6 +17,9 @@ macos/Podfile.lock
 .vscode/
 *.iml
 
+# Claude Code agent worktrees + session state
+.claude/
+
 # OS
 .DS_Store
 
