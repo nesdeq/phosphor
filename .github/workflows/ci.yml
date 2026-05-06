@@ -72,17 +72,12 @@ jobs:
       - run: flutter build macos --debug
 
   build-linux:
-    name: Build Linux (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: Build Linux (x86_64)
+    # ARM64 Linux is not built in CI: subosito/flutter-action@v2 cannot
+    # provision the Flutter SDK on aarch64 because upstream Flutter only
+    # publishes x86_64 Linux toolchains. Re-add when upstream lands ARM64.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2

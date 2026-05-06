@@ -135,11 +135,11 @@ Download the latest release from the [Releases page](https://github.com/nesdeq/p
    xattr -dr com.apple.quarantine /Applications/Phosphor.app
    ```
 
-**Linux** — x86_64 (`phosphor-linux-x86_64.tar.gz`) or ARM64 (`phosphor-linux-arm64.tar.gz`).
+**Linux** — x86_64 (`phosphor-linux-x86_64.tar.gz`). ARM64 is not yet pre-built — Flutter does not currently publish an aarch64 Linux SDK. Build from source (see below) on ARM hardware.
 
 1. Extract and run the installer:
    ```bash
-   tar xzf phosphor-linux-<arch>.tar.gz
+   tar xzf phosphor-linux-x86_64.tar.gz
    ./install.sh
    ```
    This installs to `~/.local/share/phosphor/`, adds `phosphor` to your PATH via `~/.local/bin/`, and creates a desktop entry.

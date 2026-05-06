@@ -45,19 +45,14 @@ jobs:
           path: build/macos/Build/Products/Release/${{ matrix.artifact }}
 
   build-linux:
-    name: Linux (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: Linux (x86_64)
+    # ARM64 Linux release builds are blocked on upstream Flutter publishing
+    # aarch64 SDKs. Re-add `ubuntu-24.04-arm` once subosito/flutter-action
+    # can fetch a working SDK there.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-            artifact: phosphor-linux-x86_64.tar.gz
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            artifact: phosphor-linux-arm64.tar.gz
+    env:
+      ARTIFACT: phosphor-linux-x86_64.tar.gz
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -80,12 +75,12 @@ jobs:
         run: |
           cp linux/install.sh build/linux/*/release/bundle/ || true
           cd build/linux/*/release/bundle
-          tar czf "${{ matrix.artifact }}" *
+          tar czf "${ARTIFACT}" *
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
-          path: build/linux/*/release/bundle/${{ matrix.artifact }}
+          name: linux-x86_64
+          path: build/linux/*/release/bundle/${{ env.ARTIFACT }}
 
   release:
     name: Publish release
@@ -104,7 +99,7 @@ jobs:
           cd artifacts
           ls -la
           sha256sum phosphor-macos-arm64.zip phosphor-macos-x86_64.zip \
-                    phosphor-linux-x86_64.tar.gz phosphor-linux-arm64.tar.gz \
+                    phosphor-linux-x86_64.tar.gz \
                     > SHA256SUMS.txt
           {
             echo 'sums<<EOF'
@@ -118,7 +113,6 @@ jobs:
             artifacts/phosphor-macos-arm64.zip
             artifacts/phosphor-macos-x86_64.zip
             artifacts/phosphor-linux-x86_64.tar.gz
-            artifacts/phosphor-linux-arm64.tar.gz
             artifacts/SHA256SUMS.txt
           generate_release_notes: true
           body: |
@@ -135,12 +129,12 @@ jobs:
                xattr -dr com.apple.quarantine /Applications/Phosphor.app
                ```
 
-            ### Linux
+            ### Linux (x86_64)
 
-            x86_64 → `phosphor-linux-x86_64.tar.gz`. ARM64 → `phosphor-linux-arm64.tar.gz`.
+            ARM64 Linux is not yet shipped — upstream Flutter does not publish an aarch64 SDK. Track [flutter/flutter#129143](https://github.com/flutter/flutter/issues/129143) or build from source.
 
             ```bash
-            tar xzf phosphor-linux-<arch>.tar.gz
+            tar xzf phosphor-linux-x86_64.tar.gz
             ./install.sh
             ```
 
