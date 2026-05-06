@@ -10,19 +10,11 @@ permissions:
 
 jobs:
   build-macos:
-    name: macOS (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: macOS (arm64)
+    runs-on: macos-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-latest
-            artifact: phosphor-macos-arm64.zip
-          - arch: x86_64
-            runner: macos-13
-            artifact: phosphor-macos-x86_64.zip
+    env:
+      ARTIFACT: phosphor-macos-arm64.zip
     steps:
       - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
@@ -37,12 +29,12 @@ jobs:
       - name: Zip macOS app
         run: |
           cd build/macos/Build/Products/Release
-          zip -ry "${{ matrix.artifact }}" Phosphor.app
+          zip -ry "${ARTIFACT}" Phosphor.app
 
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-${{ matrix.arch }}
-          path: build/macos/Build/Products/Release/${{ matrix.artifact }}
+          name: macos-arm64
+          path: build/macos/Build/Products/Release/${{ env.ARTIFACT }}
 
   build-linux:
     name: Linux (x86_64)
@@ -98,7 +90,7 @@ jobs:
         run: |
           cd artifacts
           ls -la
-          sha256sum phosphor-macos-arm64.zip phosphor-macos-x86_64.zip \
+          sha256sum phosphor-macos-arm64.zip \
                     phosphor-linux-x86_64.tar.gz \
                     > SHA256SUMS.txt
           {
@@ -111,16 +103,15 @@ jobs:
         with:
           files: |
             artifacts/phosphor-macos-arm64.zip
-            artifacts/phosphor-macos-x86_64.zip
             artifacts/phosphor-linux-x86_64.tar.gz
             artifacts/SHA256SUMS.txt
           generate_release_notes: true
           body: |
             ## Install
 
-            ### macOS
+            ### macOS (Apple Silicon)
 
-            Apple Silicon → `phosphor-macos-arm64.zip`. Intel → `phosphor-macos-x86_64.zip`.
+            Download `phosphor-macos-arm64.zip`.
 
             1. Unzip the archive
             2. Drag `Phosphor.app` to `/Applications`

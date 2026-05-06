@@ -125,7 +125,7 @@ Audio to match: IBM Model M keystrokes on every keypress, CRT power-on, ambient 
 
 Download the latest release from the [Releases page](https://github.com/nesdeq/phosphor/releases). Each release ships SHA256 checksums (`SHA256SUMS.txt`) — verify with `sha256sum -c SHA256SUMS.txt`.
 
-**macOS** — Apple Silicon (`phosphor-macos-arm64.zip`) or Intel (`phosphor-macos-x86_64.zip`).
+**macOS** — Apple Silicon (`phosphor-macos-arm64.zip`).
 
 1. Unzip and drag `Phosphor.app` to Applications
 2. Remove the quarantine attribute (required for unsigned apps):
