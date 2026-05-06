@@ -109,14 +109,14 @@ jobs:
 
       - name: Archive Linux bundle
         run: |
-          cp linux/install.sh build/linux/*/release/bundle/ || true
-          cd build/linux/*/release/bundle
-          tar czf "${ARTIFACT}" *
+          bundle=$(echo build/linux/*/release/bundle)
+          cp linux/install.sh "$bundle/" || true
+          tar -C "$bundle" -czf "${ARTIFACT}" .
 
       - uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64
-          path: build/linux/*/release/bundle/${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
 
   release:
     name: Publish release
@@ -143,7 +143,7 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/phosphor-macos-arm64.zip
