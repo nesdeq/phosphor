@@ -11,11 +11,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nesdeq/phosphor/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nesdeq/phosphor?display_name=tag&logo=github"></a>
-  <a href="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/nesdeq/phosphor/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/nesdeq/phosphor/total?logo=github"></a>
-  <a href="https://github.com/nesdeq/phosphor/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/nesdeq/phosphor?style=flat&logo=github"></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/nesdeq/phosphor"></a>
+  <a href="https://github.com/nesdeq/phosphor/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nesdeq/phosphor?logo=github&color=blue"></a>
+  <a href="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="License: GPL-2.0" src="https://img.shields.io/badge/license-GPL--2.0-blue"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue">
   <img alt="Built with Flutter" src="https://img.shields.io/badge/built_with-Flutter-02569B?logo=flutter">
 </p>
