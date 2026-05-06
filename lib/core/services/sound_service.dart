@@ -16,7 +16,7 @@ enum SoundEffect {
 
 final soundServiceProvider = Provider<SoundService>((ref) {
   final service = SoundService();
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(service.dispose);
 
   // Update settings reactively without recreating the service
   ref.listen<CrtSettings>(crtSettingsProvider, (_, s) {

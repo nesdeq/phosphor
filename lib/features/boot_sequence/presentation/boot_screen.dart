@@ -95,7 +95,7 @@ class _BootScreenState extends ConsumerState<BootScreen> {
     for (var i = 0; i <= 100; i += 5) {
       final bar = '${'=' * (i ~/ 5)}>${' ' * (20 - i ~/ 5)}';
       await _updateLastLine('Loading PHOSPHOR.SYS... [$bar] $i%');
-      final d = (i == 65) ? 600 : 40; // dramatic pause at 67%
+      final d = (i == 65) ? 600 : 40; // dramatic pause at 65%
       await _delay(d);
     }
     await _addLine('');
@@ -109,7 +109,7 @@ class _BootScreenState extends ConsumerState<BootScreen> {
 
     // Ready
     await _delay(300);
-    await _addLine('Welcome to PHOSPHOR Terminal v0.1.5');
+    await _addLine('Welcome to PHOSPHOR Terminal v0.1.6');
     await _addLine('The future of the terminal, rendered in phosphor.');
     await _addLine('');
     await _addLine('Ready.', style: _BootStyle.bright);
@@ -122,8 +122,7 @@ class _BootScreenState extends ConsumerState<BootScreen> {
     final padded = name.padRight(20, '.');
     await _addLine('  $padded ', newline: false);
     await _delay(120);
-    await _updateLastLine('  $padded $value [OK]',
-        style: _BootStyle.normal);
+    await _updateLastLine('  $padded $value [OK]', style: _BootStyle.normal);
   }
 
   Future<void> _addLine(
@@ -211,7 +210,6 @@ class _BootScreenState extends ConsumerState<BootScreen> {
                             ],
                           ),
                           style: TextStyle(
-                            fontFamily: 'PhosphorMono',
                             fontSize: 14,
                             height: 1.4,
                             color: switch (line.style) {
@@ -229,7 +227,6 @@ class _BootScreenState extends ConsumerState<BootScreen> {
                       child: Text(
                         'Press any key to skip...',
                         style: TextStyle(
-                          fontFamily: 'PhosphorMono',
                           fontSize: 11,
                           color: Color(0xFF0E4D0E),
                         ),
@@ -272,14 +269,14 @@ class _SystemInfo {
 
     int ramMB = 0;
     String cpu = 'Unknown';
-    String os = '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
+    String os =
+        '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
     String display = 'CRT';
 
     try {
       if (Platform.isMacOS) {
         // RAM
-        final memResult =
-            await Process.run('sysctl', ['-n', 'hw.memsize']);
+        final memResult = await Process.run('sysctl', ['-n', 'hw.memsize']);
         if (memResult.exitCode == 0) {
           final bytes = int.tryParse(memResult.stdout.toString().trim());
           if (bytes != null) ramMB = bytes ~/ (1024 * 1024);
@@ -296,8 +293,8 @@ class _SystemInfo {
           os = 'macOS ${swResult.stdout.toString().trim()}';
         }
         // Screen resolution
-        final screenResult = await Process.run('system_profiler',
-            ['SPDisplaysDataType', '-detailLevel', 'mini']);
+        final screenResult = await Process.run(
+            'system_profiler', ['SPDisplaysDataType', '-detailLevel', 'mini']);
         if (screenResult.exitCode == 0) {
           final output = screenResult.stdout.toString();
           final resMatch =
@@ -311,8 +308,7 @@ class _SystemInfo {
         final memFile = File('/proc/meminfo');
         if (await memFile.exists()) {
           final content = await memFile.readAsString();
-          final match =
-              RegExp(r'MemTotal:\s+(\d+)\s+kB').firstMatch(content);
+          final match = RegExp(r'MemTotal:\s+(\d+)\s+kB').firstMatch(content);
           if (match != null) {
             ramMB = (int.parse(match.group(1)!) / 1024).round();
           }
@@ -321,8 +317,7 @@ class _SystemInfo {
         final cpuFile = File('/proc/cpuinfo');
         if (await cpuFile.exists()) {
           final content = await cpuFile.readAsString();
-          final match =
-              RegExp(r'model name\s*:\s*(.+)').firstMatch(content);
+          final match = RegExp(r'model name\s*:\s*(.+)').firstMatch(content);
           if (match != null) cpu = match.group(1)!.trim();
         }
         // Kernel

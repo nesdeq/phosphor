@@ -1,5 +1,27 @@
 import 'package:flutter/material.dart';
 
+/// Universal error/alert red used by error banners, REPLAY indicator,
+/// and the ANSI red cell color. Outside the phosphor palette by design.
+const Color crtErrorRed = Color(0xFFFF3333);
+
+/// VT100-standard initial terminal dimensions. Used as the bootstrap size
+/// for the live terminal, peer-side terminal, and replay terminal — any
+/// real layout overrides this on the first frame.
+const int kInitialTerminalCols = 80;
+const int kInitialTerminalRows = 24;
+
+/// Terminal display font. Each variant maps to a Flutter font family
+/// declared in pubspec.yaml; all three are Nerd Font patched.
+enum TerminalFont {
+  departureMono('Departure Mono', 'DepartureMono'),
+  ibm3270('IBM 3270', 'IBM3270'),
+  jetBrainsMono('JetBrains Mono', 'JetBrainsMono');
+
+  const TerminalFont(this.label, this.family);
+  final String label;
+  final String family;
+}
+
 /// Color set for a single phosphor palette.
 class CrtColorScheme {
   final Color text;

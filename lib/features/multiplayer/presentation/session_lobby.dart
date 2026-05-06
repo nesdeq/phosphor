@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/crt_colors.dart';
 import '../../../app/theme/phosphor_theme.dart';
+import '../../../app/widgets/crt_button.dart';
 import '../../../app/widgets/crt_dialog.dart';
+import '../../../app/widgets/crt_text_field.dart';
 import '../../../core/services/session_service.dart';
-import '../../../core/services/sound_service.dart';
 import '../../settings/providers/settings_provider.dart';
 
 /// Session sharing dialog — host or join a shared terminal session.
@@ -22,7 +23,6 @@ class SessionLobby extends ConsumerStatefulWidget {
 class _SessionLobbyState extends ConsumerState<SessionLobby> {
   final _codeController = TextEditingController();
   bool _isJoinMode = false;
-  int _prevInputLength = 0;
 
   @override
   void dispose() {
@@ -56,28 +56,26 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
   }
 
   Widget _buildLobby(CrtColorScheme colors, SessionState session) {
+    final dimBody = TextStyle(
+      fontSize: 12,
+      color: colors.textDim,
+      height: 1.5,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (session.error != null) ...[
           Text(
             session.error!,
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 12,
-              color: colors.text,
-            ),
+            style: TextStyle(fontSize: 12, color: colors.text),
           ),
           const SizedBox(height: 12),
         ],
         if (session.connecting) ...[
           Text(
             'Connecting to $_serverUrl ...',
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 13,
-              color: colors.textDim,
-            ),
+            style: TextStyle(fontSize: 13, color: colors.textDim),
           ),
         ] else if (!_isJoinMode) ...[
           if (_serverUrl.isEmpty) ...[
@@ -88,117 +86,83 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
               '  Server Cert:  /path/to/public.pem\n\n'
               'Run server_setup.sh to generate\n'
               'certs for your relay.',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 12,
-                color: colors.textDim,
-                height: 1.5,
-              ),
+              style: dimBody,
             ),
             const SizedBox(height: 16),
-            _lobbyButton('CLOSE', widget.onClose, colors, primary: false),
+            _wideButton('CLOSE', widget.onClose, filled: false),
           ] else ...[
             Text(
               'Share your terminal session with\n'
               'others. All data is end-to-end\n'
               'encrypted via the session code.',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 12,
-                color: colors.textDim,
-                height: 1.5,
-              ),
+              style: dimBody,
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: _lobbyButton('HOST SESSION', () {
+                  child: _wideButton('HOST SESSION', () {
                     ref.read(sessionProvider.notifier).hostSession(
                           serverUrl: _serverUrl,
                           certPath: _certPath,
                         );
-                  }, colors),
+                  }),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _lobbyButton(
+                  child: _wideButton(
                     'JOIN SESSION',
                     () => setState(() => _isJoinMode = true),
-                    colors,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            _lobbyButton('CANCEL', widget.onClose, colors, primary: false),
+            _wideButton('CANCEL', widget.onClose, filled: false),
           ],
         ] else ...[
-          // Join mode — enter code
           Text(
             'Enter session code:',
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 13,
-              color: colors.textDim,
-            ),
+            style: TextStyle(fontSize: 13, color: colors.textDim),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: colors.text),
-            ),
-            child: TextField(
-              controller: _codeController,
-              autofocus: true,
-              textCapitalization: TextCapitalization.characters,
-              onChanged: (value) {
-                _prevInputLength = ref
-                    .read(soundServiceProvider)
-                    .handleTextFieldKeystroke(_prevInputLength, value);
-              },
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 20,
-                color: colors.text,
-                letterSpacing: 4,
-              ),
-              cursorColor: colors.cursor,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'PHO-XXXXXX-XXXXXXXXXXXX',
-                hintStyle: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 20,
-                  color: colors.textDim,
-                  letterSpacing: 4,
-                ),
-              ),
-              onSubmitted: (_) => _joinWithCode(),
-            ),
+          CrtTextField(
+            controller: _codeController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            fontSize: 20,
+            letterSpacing: 4,
+            hintText: 'PHO-XXXXXX-XXXXXXXXXXXX',
+            decoration: BoxDecoration(border: Border.all(color: colors.text)),
+            onSubmitted: (_) => _joinWithCode(),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _lobbyButton(
+                child: _wideButton(
                   'BACK',
                   () => setState(() => _isJoinMode = false),
-                  colors,
-                  primary: false,
+                  filled: false,
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: _lobbyButton('CONNECT', _joinWithCode, colors),
-              ),
+              Expanded(child: _wideButton('CONNECT', _joinWithCode)),
             ],
           ),
         ],
       ],
     );
   }
+
+  Widget _wideButton(String label, VoidCallback onTap, {bool filled = true}) =>
+      CrtButton(
+        label: label,
+        onTap: onTap,
+        filled: filled,
+        expand: true,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+      );
 
   void _joinWithCode() {
     final code = _codeController.text.trim();
@@ -215,14 +179,12 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Session code
         Row(
           children: [
             Expanded(
               child: Text(
                 session.sessionCode ?? '',
                 style: TextStyle(
-                  fontFamily: 'PhosphorMono',
                   fontSize: 14,
                   color: colors.text,
                   fontWeight: FontWeight.bold,
@@ -235,17 +197,12 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
             GestureDetector(
               onTap: () {
                 if (session.sessionCode != null) {
-                  Clipboard.setData(
-                      ClipboardData(text: session.sessionCode!));
+                  Clipboard.setData(ClipboardData(text: session.sessionCode!));
                 }
               },
               child: Text(
                 '[COPY]',
-                style: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 11,
-                  color: colors.textDim,
-                ),
+                style: TextStyle(fontSize: 11, color: colors.textDim),
               ),
             ),
           ],
@@ -255,17 +212,12 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
           children: [
             Text(
               session.isHost ? 'Role: HOST' : 'Role: PEER',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 12,
-                color: colors.textDim,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textDim),
             ),
             const Spacer(),
             Text(
               '[ENCRYPTED]',
               style: TextStyle(
-                fontFamily: 'PhosphorMono',
                 fontSize: 10,
                 color: colors.text,
                 fontWeight: FontWeight.bold,
@@ -274,28 +226,19 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
           ],
         ),
         const SizedBox(height: 12),
-        // Participants
         Text(
           'Participants:',
-          style: TextStyle(
-            fontFamily: 'PhosphorMono',
-            fontSize: 12,
-            color: colors.textDim,
-          ),
+          style: TextStyle(fontSize: 12, color: colors.textDim),
         ),
         const SizedBox(height: 4),
         ...session.participants.map(
           (p) => _buildParticipantRow(p, colors, session),
         ),
         const SizedBox(height: 16),
-        _lobbyButton(
-          'LEAVE SESSION',
-          () {
-            ref.read(sessionProvider.notifier).leaveSession();
-            widget.onClose();
-          },
-          colors,
-        ),
+        _wideButton('LEAVE SESSION', () {
+          ref.read(sessionProvider.notifier).leaveSession();
+          widget.onClose();
+        }),
       ],
     );
   }
@@ -307,11 +250,8 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
   ) {
     final isSelf = p.id == session.selfId;
     final isHost = session.isHost;
-    final roleLabel = p.role == SessionRole.host
-        ? 'HOST'
-        : p.role == SessionRole.editor
-            ? 'EDITOR'
-            : 'VIEWER';
+    final canManage = isHost && !isSelf && p.role != SessionRole.host;
+    final roleLabel = p.role.label;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -319,15 +259,10 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
         children: [
           Text(
             '  ${p.name}',
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 12,
-              color: colors.text,
-            ),
+            style: TextStyle(fontSize: 12, color: colors.text),
           ),
           const Spacer(),
-          // Role badge — tappable by host to toggle peer roles
-          if (isHost && !isSelf && p.role != SessionRole.host)
+          if (canManage)
             GestureDetector(
               onTap: () {
                 final newRole = p.role == SessionRole.editor
@@ -336,15 +271,13 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
                 ref.read(sessionProvider.notifier).setRole(p.id, newRole);
               },
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   border: Border.all(color: colors.textDim),
                 ),
                 child: Text(
                   roleLabel,
                   style: TextStyle(
-                    fontFamily: 'PhosphorMono',
                     fontSize: 9,
                     color: p.role == SessionRole.editor
                         ? colors.text
@@ -356,57 +289,19 @@ class _SessionLobbyState extends ConsumerState<SessionLobby> {
           else
             Text(
               '[$roleLabel]',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 10,
-                color: colors.textDim,
-              ),
+              style: TextStyle(fontSize: 10, color: colors.textDim),
             ),
-          // Kick button (host only, not self)
-          if (isHost && !isSelf && p.role != SessionRole.host) ...[
+          if (canManage) ...[
             const SizedBox(width: 6),
             GestureDetector(
-              onTap: () =>
-                  ref.read(sessionProvider.notifier).kick(p.id),
+              onTap: () => ref.read(sessionProvider.notifier).kick(p.id),
               child: Text(
                 '[X]',
-                style: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 10,
-                  color: colors.textDim,
-                ),
+                style: TextStyle(fontSize: 10, color: colors.textDim),
               ),
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _lobbyButton(
-    String label,
-    VoidCallback onTap,
-    CrtColorScheme colors, {
-    bool primary = true,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: primary ? colors.text : Colors.transparent,
-          border: Border.all(color: colors.text),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'PhosphorMono',
-            fontSize: 13,
-            color: primary ? colors.background : colors.text,
-          ),
-        ),
       ),
     );
   }

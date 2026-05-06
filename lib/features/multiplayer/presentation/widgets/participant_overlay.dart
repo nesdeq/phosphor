@@ -42,7 +42,6 @@ class ParticipantOverlay extends ConsumerWidget {
             Text(
               '${session.participants.length} connected',
               style: TextStyle(
-                fontFamily: 'PhosphorMono',
                 fontSize: 9,
                 color: colors.textDim,
               ),
@@ -52,11 +51,7 @@ class ParticipantOverlay extends ConsumerWidget {
               final idx = entry.key;
               final p = entry.value;
               final dotColor = _colors[idx % _colors.length];
-              final roleTag = p.role == SessionRole.host
-                  ? 'H'
-                  : p.role == SessionRole.editor
-                      ? 'E'
-                      : 'V';
+              final roleTag = p.role.shortLabel;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 1),
                 child: Row(
@@ -65,7 +60,6 @@ class ParticipantOverlay extends ConsumerWidget {
                     Text(
                       '[$roleTag]',
                       style: TextStyle(
-                        fontFamily: 'PhosphorMono',
                         fontSize: 8,
                         color: colors.textDim,
                       ),
@@ -74,7 +68,6 @@ class ParticipantOverlay extends ConsumerWidget {
                     Text(
                       p.name,
                       style: TextStyle(
-                        fontFamily: 'PhosphorMono',
                         fontSize: 9,
                         color: colors.text,
                       ),

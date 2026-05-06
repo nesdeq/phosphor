@@ -61,7 +61,6 @@ class CrtDialog extends ConsumerWidget {
                         title,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontFamily: 'PhosphorMono',
                           fontSize: 14,
                           color: colors.background,
                           fontWeight: FontWeight.bold,

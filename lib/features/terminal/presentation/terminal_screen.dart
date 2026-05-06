@@ -8,6 +8,7 @@ import 'package:xterm/xterm.dart';
 
 import '../../../app/theme/crt_colors.dart';
 import '../../../app/theme/phosphor_theme.dart';
+import '../../../app/widgets/crt_button.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/services/sound_service.dart';
 import '../../ai_assistant/presentation/ai_panel.dart';
@@ -16,6 +17,7 @@ import '../../ai_assistant/providers/ai_provider.dart';
 import '../../multiplayer/presentation/session_lobby.dart';
 import '../../multiplayer/presentation/widgets/participant_overlay.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../time_travel/presentation/widgets/timeline_bar.dart';
 import '../../time_travel/providers/timeline_provider.dart';
 import '../providers/terminal_provider.dart';
@@ -91,12 +93,14 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
     final timeline = ref.watch(timelineProvider);
     final sessionState = ref.watch(sessionProvider);
     final isPeerMode = sessionState.isActive && !sessionState.isHost;
+    final fontFamily =
+        ref.watch(crtSettingsProvider.select((s) => s.terminalFont.family));
 
     // Determine which terminal to show: peer view, replay, or live
     final Terminal displayTerminal;
     if (isPeerMode) {
-      displayTerminal = ref.read(sessionProvider.notifier).peerTerminal ??
-          session.terminal;
+      displayTerminal =
+          ref.read(sessionProvider.notifier).peerTerminal ?? session.terminal;
     } else if (timeline.isReplaying) {
       displayTerminal = ref.read(timelineProvider.notifier).replayTerminal ??
           session.terminal;
@@ -107,158 +111,147 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
-          children: [
-            // Terminal
-            SafeArea(
-              child: Column(
-                children: [
-                  // Toolbar
-                  _buildToolbar(colors, timeline),
-                  // Terminal view
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: CrtOverlay(
-                            child: TerminalView(
-                              displayTerminal,
-                              theme: _terminalTheme(colors),
-                              textStyle: const TerminalStyle(
-                                fontSize: 16,
-                                fontFamily: 'PhosphorMono',
-                              ),
+        children: [
+          // Terminal
+          SafeArea(
+            child: Column(
+              children: [
+                // Toolbar
+                _buildToolbar(colors, timeline),
+                // Terminal view
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CrtOverlay(
+                          child: TerminalView(
+                            displayTerminal,
+                            theme: _terminalTheme(colors),
+                            textStyle: TerminalStyle(
+                              fontSize: 16,
+                              fontFamily: fontFamily,
                             ),
                           ),
                         ),
-                        // AI side panel
-                        if (_showAiPanel)
-                          SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.35,
-                            child: AiPanel(
-                              onClose: () =>
-                                  setState(() => _showAiPanel = false),
-                            ),
+                      ),
+                      // AI side panel
+                      if (_showAiPanel)
+                        SizedBox(
+                          width: MediaQuery.of(context).size.width * 0.35,
+                          child: AiPanel(
+                            onClose: () => setState(() => _showAiPanel = false),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                  // Timeline bar
-                  if (_showTimeline) const TimelineBar(),
-                ],
-              ),
+                ),
+                // Timeline bar
+                if (_showTimeline) const TimelineBar(),
+              ],
             ),
-            // Error auto-explanation banner
-            if (_errorBannerVisible && _lastError != null)
-              Positioned(
-                bottom: _showTimeline ? 56 : 8,
-                left: 16,
-                right: _showAiPanel
-                    ? MediaQuery.of(context).size.width * 0.35 + 16
-                    : 16,
-                child: _buildErrorBanner(colors),
-              ),
-            // Peer mode indicator
-            if (isPeerMode)
-              Positioned(
-                top: 32,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: colors.glow.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: GestureDetector(
-                      onTap: () =>
-                          ref.read(sessionProvider.notifier).leaveSession(),
-                      child: Text(
-                        'PEER MODE [ENCRYPTED] — click to leave',
-                        style: TextStyle(
-                          fontFamily: 'PhosphorMono',
-                          fontSize: 11,
-                          color: colors.background,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // Replay mode indicator
-            if (timeline.isReplaying)
-              Positioned(
-                top: 32,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF3333).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: GestureDetector(
-                      onTap: () =>
-                          ref.read(timelineProvider.notifier).exitReplayMode(),
-                      child: const Text(
-                        'REPLAY MODE — click to return to live',
-                        style: TextStyle(
-                          fontFamily: 'PhosphorMono',
-                          fontSize: 11,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            // Command palette overlay
-            if (_showCommandPalette)
-              CommandPalette(
-                onClose: () => setState(() => _showCommandPalette = false),
-                onSubmit: (command) {
-                  setState(() => _showCommandPalette = false);
-                  // Write the command to the terminal
-                  session.terminal.onOutput?.call('$command\n');
-                },
-              ),
-            // Participant overlay
-            const ParticipantOverlay(),
-            // Session lobby overlay
-            if (_showSessionLobby)
-              SessionLobby(
-                onClose: () => setState(() => _showSessionLobby = false),
-              ),
-            // Settings overlay
-            if (_showSettings)
-              SettingsScreen(
-                onClose: () => setState(() => _showSettings = false),
-              ),
-          ],
-        ),
+          ),
+          // Error auto-explanation banner
+          if (_errorBannerVisible && _lastError != null)
+            Positioned(
+              bottom: _showTimeline ? 56 : 8,
+              left: 16,
+              right: _showAiPanel
+                  ? MediaQuery.of(context).size.width * 0.35 + 16
+                  : 16,
+              child: _buildErrorBanner(colors),
+            ),
+          // Peer mode indicator
+          if (isPeerMode)
+            _modeBanner(
+              color: colors.glow,
+              textColor: colors.background,
+              label: 'PEER MODE [ENCRYPTED] — click to leave',
+              onTap: () => ref.read(sessionProvider.notifier).leaveSession(),
+            ),
+          // Replay mode indicator
+          if (timeline.isReplaying)
+            _modeBanner(
+              color: crtErrorRed,
+              textColor: Colors.white,
+              label: 'REPLAY MODE — click to return to live',
+              onTap: () => ref.read(timelineProvider.notifier).exitReplayMode(),
+            ),
+          // Command palette overlay
+          if (_showCommandPalette)
+            CommandPalette(
+              onClose: () => setState(() => _showCommandPalette = false),
+              onSubmit: (command) {
+                setState(() => _showCommandPalette = false);
+                // Write the command to the terminal
+                session.terminal.onOutput?.call('$command\n');
+              },
+            ),
+          // Participant overlay
+          const ParticipantOverlay(),
+          // Session lobby overlay
+          if (_showSessionLobby)
+            SessionLobby(
+              onClose: () => setState(() => _showSessionLobby = false),
+            ),
+          // Settings overlay
+          if (_showSettings)
+            SettingsScreen(
+              onClose: () => setState(() => _showSettings = false),
+            ),
+        ],
+      ),
     );
   }
+
+  Widget _modeBanner({
+    required Color color,
+    required Color textColor,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Positioned(
+      top: 32,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static const _errorRedDim = Color(0xFFFF6666);
 
   Widget _buildErrorBanner(CrtColorScheme colors) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF1A0000),
-        border: Border.all(color: const Color(0xFFFF3333), width: 1),
+        border: Border.all(color: crtErrorRed, width: 1),
       ),
       child: Row(
         children: [
           const Text(
             'ERROR DETECTED',
             style: TextStyle(
-              fontFamily: 'PhosphorMono',
               fontSize: 11,
-              color: Color(0xFFFF3333),
+              color: crtErrorRed,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -267,11 +260,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
             child: Text(
               _lastError!.split('\n').first,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 11,
-                color: Color(0xFFFF6666),
-              ),
+              style: const TextStyle(fontSize: 11, color: _errorRedDim),
             ),
           ),
           const SizedBox(width: 8),
@@ -280,15 +269,11 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFFF3333)),
+                border: Border.all(color: crtErrorRed),
               ),
               child: const Text(
                 'EXPLAIN',
-                style: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 10,
-                  color: Color(0xFFFF3333),
-                ),
+                style: TextStyle(fontSize: 10, color: crtErrorRed),
               ),
             ),
           ),
@@ -297,11 +282,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
             onTap: () => setState(() => _errorBannerVisible = false),
             child: const Text(
               '[X]',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 10,
-                color: Color(0xFFFF6666),
-              ),
+              style: TextStyle(fontSize: 10, color: _errorRedDim),
             ),
           ),
         ],
@@ -310,6 +291,16 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
   }
 
   Widget _buildToolbar(CrtColorScheme colors, TimelineState timeline) {
+    Widget tab(String label, bool active, VoidCallback onTap) => CrtButton(
+          label: label,
+          onTap: onTap,
+          filled: active,
+          dimBorder: true,
+          dimLabel: true,
+          fontSize: 10,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        );
+
     return Container(
       height: 28,
       color: colors.background,
@@ -319,7 +310,6 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
           Text(
             'PHOSPHOR',
             style: TextStyle(
-              fontFamily: 'PhosphorMono',
               fontSize: 12,
               color: colors.text,
               fontWeight: FontWeight.bold,
@@ -330,70 +320,24 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
             Text(
               '[REPLAY]',
               style: TextStyle(
-                fontFamily: 'PhosphorMono',
                 fontSize: 10,
                 color: colors.text.withValues(alpha: 0.6),
               ),
             ),
           ],
           const Spacer(),
-          _toolbarButton(
-            'TIMELINE',
-            _showTimeline,
-            () => setState(() => _showTimeline = !_showTimeline),
-            colors,
-          ),
+          tab('TIMELINE', _showTimeline,
+              () => setState(() => _showTimeline = !_showTimeline)),
           const SizedBox(width: 8),
-          _toolbarButton(
-            'SHARE',
-            _showSessionLobby,
-            () => setState(() => _showSessionLobby = !_showSessionLobby),
-            colors,
-          ),
+          tab('SHARE', _showSessionLobby,
+              () => setState(() => _showSessionLobby = !_showSessionLobby)),
           const SizedBox(width: 8),
-          _toolbarButton(
-            'ALAN',
-            _showAiPanel,
-            () => setState(() => _showAiPanel = !_showAiPanel),
-            colors,
-          ),
+          tab('ALAN', _showAiPanel,
+              () => setState(() => _showAiPanel = !_showAiPanel)),
           const SizedBox(width: 8),
-          _toolbarButton(
-            'SETTINGS',
-            _showSettings,
-            () => setState(() => _showSettings = !_showSettings),
-            colors,
-          ),
+          tab('SETTINGS', _showSettings,
+              () => setState(() => _showSettings = !_showSettings)),
         ],
-      ),
-    );
-  }
-
-  Widget _toolbarButton(
-    String label,
-    bool active,
-    VoidCallback onTap,
-    CrtColorScheme colors,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: active ? colors.text : Colors.transparent,
-          border: Border.all(
-            color: active ? colors.text : colors.textDim,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'PhosphorMono',
-            fontSize: 10,
-            color: active ? colors.background : colors.textDim,
-          ),
-        ),
       ),
     );
   }
@@ -412,16 +356,12 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
       return true;
     }
     // Cmd+K -> Command palette
-    if (meta &&
-        !shift &&
-        event.logicalKey == LogicalKeyboardKey.keyK) {
+    if (meta && !shift && event.logicalKey == LogicalKeyboardKey.keyK) {
       setState(() => _showCommandPalette = !_showCommandPalette);
       return true;
     }
     // Cmd+Shift+K -> AI panel
-    if (meta &&
-        shift &&
-        event.logicalKey == LogicalKeyboardKey.keyK) {
+    if (meta && shift && event.logicalKey == LogicalKeyboardKey.keyK) {
       setState(() => _showAiPanel = !_showAiPanel);
       return true;
     }
@@ -431,9 +371,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
       return true;
     }
     // Ctrl/Cmd+F -> Toggle fullscreen
-    if (meta &&
-        !shift &&
-        event.logicalKey == LogicalKeyboardKey.keyF) {
+    if (meta && !shift && event.logicalKey == LogicalKeyboardKey.keyF) {
       windowManager.isFullScreen().then((isFullScreen) {
         windowManager.setFullScreen(!isFullScreen);
       });
@@ -442,31 +380,50 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
     return false;
   }
 
-  TerminalTheme _terminalTheme(CrtColorScheme colors) {
-    return TerminalTheme(
-      cursor: colors.cursor,
-      selection: colors.selection,
-      foreground: colors.text,
-      background: colors.background,
-      black: const Color(0xFF0A0A0A),
-      red: const Color(0xFFFF3333),
-      green: const Color(0xFF33FF33),
-      yellow: const Color(0xFFFFFF33),
-      blue: const Color(0xFF3333FF),
-      magenta: const Color(0xFFFF33FF),
-      cyan: const Color(0xFF33FFFF),
-      white: const Color(0xFFE0E0E0),
-      brightBlack: const Color(0xFF555555),
-      brightRed: const Color(0xFFFF6666),
-      brightGreen: const Color(0xFF66FF66),
-      brightYellow: const Color(0xFFFFFF66),
-      brightBlue: const Color(0xFF6666FF),
-      brightMagenta: const Color(0xFFFF66FF),
-      brightCyan: const Color(0xFF66FFFF),
-      brightWhite: const Color(0xFFFFFFFF),
-      searchHitBackground: colors.selection,
-      searchHitBackgroundCurrent: colors.text,
-      searchHitForeground: colors.background,
-    );
-  }
+  TerminalTheme _terminalTheme(CrtColorScheme colors) => TerminalTheme(
+        cursor: colors.cursor,
+        selection: colors.selection,
+        foreground: colors.text,
+        background: colors.background,
+        black: _Ansi.black,
+        red: _Ansi.red,
+        green: _Ansi.green,
+        yellow: _Ansi.yellow,
+        blue: _Ansi.blue,
+        magenta: _Ansi.magenta,
+        cyan: _Ansi.cyan,
+        white: _Ansi.white,
+        brightBlack: _Ansi.brightBlack,
+        brightRed: _Ansi.brightRed,
+        brightGreen: _Ansi.brightGreen,
+        brightYellow: _Ansi.brightYellow,
+        brightBlue: _Ansi.brightBlue,
+        brightMagenta: _Ansi.brightMagenta,
+        brightCyan: _Ansi.brightCyan,
+        brightWhite: _Ansi.brightWhite,
+        searchHitBackground: colors.selection,
+        searchHitBackgroundCurrent: colors.text,
+        searchHitForeground: colors.background,
+      );
+}
+
+/// Static ANSI cell colors used by xterm. Independent of phosphor palette —
+/// programs expect these regardless of the user's CRT tint.
+abstract final class _Ansi {
+  static const black = Color(0xFF0A0A0A);
+  static const red = crtErrorRed;
+  static const green = Color(0xFF33FF33);
+  static const yellow = Color(0xFFFFFF33);
+  static const blue = Color(0xFF3333FF);
+  static const magenta = Color(0xFFFF33FF);
+  static const cyan = Color(0xFF33FFFF);
+  static const white = Color(0xFFE0E0E0);
+  static const brightBlack = Color(0xFF555555);
+  static const brightRed = Color(0xFFFF6666);
+  static const brightGreen = Color(0xFF66FF66);
+  static const brightYellow = Color(0xFFFFFF66);
+  static const brightBlue = Color(0xFF6666FF);
+  static const brightMagenta = Color(0xFFFF66FF);
+  static const brightCyan = Color(0xFF66FFFF);
+  static const brightWhite = Color(0xFFFFFFFF);
 }

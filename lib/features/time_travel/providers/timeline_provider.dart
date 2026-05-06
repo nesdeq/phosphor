@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
 
+import '../../../app/theme/crt_colors.dart';
 import '../../../core/services/event_store.dart';
 
 /// State for the timeline scrubber / replay engine.
@@ -85,10 +86,11 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     if (_events.isEmpty) return;
 
     _sessionStart = _events.first.timestamp;
-    final durationMs = _events.last.timestamp.difference(_sessionStart!).inMilliseconds;
+    final durationMs =
+        _events.last.timestamp.difference(_sessionStart!).inMilliseconds;
 
-    replayTerminal = Terminal(maxLines: 10000);
-    replayTerminal!.resize(120, 80, 0, 0);
+    replayTerminal = Terminal(maxLines: 10000)
+      ..resize(kInitialTerminalCols, kInitialTerminalRows, 0, 0);
     _replayedUpToIndex = 0;
 
     // Replay everything to show current state
@@ -148,26 +150,29 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   /// Find the event index corresponding to a time offset, then replay up to it.
+  /// Concatenates output between current position and target into a single
+  /// Terminal.write call — much cheaper than N small writes for full rebuilds.
   void _replayUpToTime(int timeMs) {
     if (replayTerminal == null || _sessionStart == null) return;
 
     final targetTime = _sessionStart!.add(Duration(milliseconds: timeMs));
     final targetIndex = _eventIndexAtTime(targetTime);
 
-    // Seeking backward — must rebuild from scratch
+    // xterm has no rewind primitive — backward seek requires rebuild.
     if (targetIndex < _replayedUpToIndex) {
-      replayTerminal = Terminal(maxLines: 10000);
-      replayTerminal!.resize(120, 80, 0, 0);
+      replayTerminal = Terminal(maxLines: 10000)
+        ..resize(kInitialTerminalCols, kInitialTerminalRows, 0, 0);
       _replayedUpToIndex = 0;
     }
 
-    // Replay from current position to target (incremental forward)
+    if (_replayedUpToIndex == targetIndex) return;
+
+    final buf = StringBuffer();
     for (var i = _replayedUpToIndex; i < targetIndex; i++) {
       final event = _events[i];
-      if (event.type == EventType.output) {
-        replayTerminal!.write(event.data);
-      }
+      if (event.type == EventType.output) buf.write(event.data);
     }
+    if (buf.isNotEmpty) replayTerminal!.write(buf.toString());
     _replayedUpToIndex = targetIndex;
   }
 
@@ -186,44 +191,43 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   /// Step to the next event's timestamp.
-  Future<void> stepForward() async {
-    if (!state.isReplaying) {
-      await enterReplayMode();
-      if (!state.isReplaying) return;
-    }
-    _stepForward();
-  }
-
-  void _stepForward() {
-    if (_sessionStart == null || _events.isEmpty) return;
-    final currentTime = _sessionStart!.add(Duration(milliseconds: state.currentTimeMs));
-    final idx = _eventIndexAtTime(currentTime); // first event AFTER currentTime
-    if (idx < _events.length) {
-      seekTo(_events[idx].timestamp.difference(_sessionStart!).inMilliseconds, immediate: true);
-    }
-  }
+  Future<void> stepForward() => _step(forward: true);
 
   /// Step to the previous event's timestamp.
-  Future<void> stepBack() async {
+  Future<void> stepBack() => _step(forward: false);
+
+  Future<void> _step({required bool forward}) async {
     if (!state.isReplaying) {
       await enterReplayMode();
       if (!state.isReplaying) return;
     }
-    _stepBack();
-  }
-
-  void _stepBack() {
     if (_sessionStart == null || _events.isEmpty) return;
-    final currentTime = _sessionStart!.add(Duration(milliseconds: state.currentTimeMs));
-    final idx = _eventIndexAtTime(currentTime); // exclusive upper bound of events <= currentTime
-    // Scan back from idx-1 to find first event strictly before currentTime
-    for (var i = idx - 1; i >= 0; i--) {
-      if (_events[i].timestamp.isBefore(currentTime)) {
-        seekTo(_events[i].timestamp.difference(_sessionStart!).inMilliseconds, immediate: true);
-        return;
+
+    final currentTime =
+        _sessionStart!.add(Duration(milliseconds: state.currentTimeMs));
+    final idx = _eventIndexAtTime(currentTime);
+
+    int? targetIdx;
+    if (forward) {
+      // _eventIndexAtTime returns first event strictly AFTER currentTime.
+      if (idx < _events.length) targetIdx = idx;
+    } else {
+      // Scan back for first event strictly BEFORE currentTime.
+      for (var i = idx - 1; i >= 0; i--) {
+        if (_events[i].timestamp.isBefore(currentTime)) {
+          targetIdx = i;
+          break;
+        }
       }
     }
-    seekTo(0, immediate: true);
+
+    final targetMs = targetIdx == null
+        ? 0
+        : _events[targetIdx]
+            .timestamp
+            .difference(_sessionStart!)
+            .inMilliseconds;
+    seekTo(targetMs, immediate: true);
   }
 
   Future<void> togglePlay() async {

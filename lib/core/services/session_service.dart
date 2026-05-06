@@ -7,11 +7,32 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
 
+import '../../app/theme/crt_colors.dart';
 import 'crypto_service.dart';
 import 'user_environment.dart';
 
 /// Roles in a shared session.
-enum SessionRole { host, editor, viewer }
+enum SessionRole {
+  host,
+  editor,
+  viewer;
+
+  /// Single-character tag for compact UI badges (overlay, list rows).
+  String get shortLabel => switch (this) {
+        SessionRole.host => 'H',
+        SessionRole.editor => 'E',
+        SessionRole.viewer => 'V',
+      };
+
+  /// Full uppercase label for verbose role pills.
+  String get label => name.toUpperCase();
+
+  static SessionRole parse(String s) => switch (s) {
+        'editor' => SessionRole.editor,
+        'host' => SessionRole.host,
+        _ => SessionRole.viewer,
+      };
+}
 
 /// A participant in a shared session.
 class Participant {
@@ -38,9 +59,12 @@ class SessionState {
   final bool isActive;
   final bool isHost;
   final String? sessionCode;
-  final String? serverUrl;
   final List<Participant> participants;
+
+  /// Last error or status message — passed through to copyWith without
+  /// `??=` semantics so callers can clear it by passing `error: null`.
   final String? error;
+
   final bool connecting;
   final String? selfId;
 
@@ -48,7 +72,6 @@ class SessionState {
     this.isActive = false,
     this.isHost = false,
     this.sessionCode,
-    this.serverUrl,
     this.participants = const [],
     this.error,
     this.connecting = false,
@@ -59,7 +82,6 @@ class SessionState {
     bool? isActive,
     bool? isHost,
     String? sessionCode,
-    String? serverUrl,
     List<Participant>? participants,
     String? error,
     bool? connecting,
@@ -69,7 +91,6 @@ class SessionState {
       isActive: isActive ?? this.isActive,
       isHost: isHost ?? this.isHost,
       sessionCode: sessionCode ?? this.sessionCode,
-      serverUrl: serverUrl ?? this.serverUrl,
       participants: participants ?? this.participants,
       error: error,
       connecting: connecting ?? this.connecting,
@@ -85,7 +106,7 @@ final sessionProvider =
 
 class SessionNotifier extends StateNotifier<SessionState> {
   WebSocket? _socket;
-  StreamSubscription? _subscription;
+  StreamSubscription<dynamic>? _subscription;
   Timer? _pingTimer;
   final _random = Random.secure();
   final _crypto = CryptoService();
@@ -95,8 +116,16 @@ class SessionNotifier extends StateNotifier<SessionState> {
   /// Receives decrypted output from the host. Input goes through [sendInput].
   Terminal? peerTerminal;
 
-  /// Called when the host receives peer input (writes to PTY).
-  void Function(String data)? onPeerInput;
+  /// Stream of decrypted peer input received by the host. The terminal
+  /// session subscribes to write into the PTY. Replaces the previous
+  /// public-mutable callback.
+  final _peerInputController = StreamController<String>.broadcast();
+  Stream<String> get peerInputStream => _peerInputController.stream;
+
+  /// Last broadcast terminal dimensions — re-sent when a new peer joins so
+  /// they don't render the stream at the hardcoded 80×24 default.
+  int? _lastCols;
+  int? _lastRows;
 
   /// Pinned server cert DER bytes, loaded from user-configured path.
   Uint8List? _pinnedCertDer;
@@ -160,8 +189,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
     // HTTP WebSocket upgrade over TLS
     final key = base64.encode(List.generate(16, (_) => _random.nextInt(256)));
-    final request =
-        await client.openUrl('GET', uri.replace(scheme: 'https'));
+    final request = await client.openUrl('GET', uri.replace(scheme: 'https'));
     request.headers
       ..set('Connection', 'Upgrade')
       ..set('Upgrade', 'websocket')
@@ -171,6 +199,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
     if (response.statusCode != HttpStatus.switchingProtocols) {
       throw Exception('WebSocket upgrade failed: ${response.statusCode}');
     }
+    // The detached Socket is wrapped by WebSocket.fromUpgradedSocket; closing
+    // the WebSocket closes the underlying Socket. The linter can't trace
+    // ownership across this hand-off, hence the suppression.
+    // ignore: close_sinks
     final socket = await response.detachSocket();
     return WebSocket.fromUpgradedSocket(socket, serverSide: false);
   }
@@ -200,7 +232,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
     String certPath = '',
   }) async {
     await _connect(
-        url: serverUrl, code: _generateCode(), isHost: true, certPath: certPath);
+        url: serverUrl,
+        code: _generateCode(),
+        isHost: true,
+        certPath: certPath);
   }
 
   /// Join an existing session.
@@ -210,7 +245,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
     String certPath = '',
   }) async {
     await _connect(
-        url: serverUrl, code: code.toUpperCase(), isHost: false, certPath: certPath);
+        url: serverUrl,
+        code: code.toUpperCase(),
+        isHost: false,
+        certPath: certPath);
   }
 
   Future<void> _connect({
@@ -223,7 +261,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
       connecting: true,
       isHost: isHost,
       sessionCode: code,
-      serverUrl: url,
     );
 
     try {
@@ -234,9 +271,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
       // Only WSS allowed
       if (!url.startsWith('wss://')) {
-        throw ArgumentError(
-          'Invalid relay URL. Use format: wss://host:port'
-        );
+        throw ArgumentError('Invalid relay URL. Use format: wss://host:port');
       }
 
       _socket = await _connectWss(url, certPath);
@@ -311,6 +346,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
   /// Broadcast terminal resize (host only, encrypted).
   void broadcastResize(int cols, int rows) {
+    _lastCols = cols;
+    _lastRows = rows;
     if (!state.isActive || !state.isHost || _socket == null) return;
     _encryptAndSend('resize', jsonEncode({'cols': cols, 'rows': rows}));
   }
@@ -352,9 +389,9 @@ class SessionNotifier extends StateNotifier<SessionState> {
         case 'joined':
           final peerId = msg['peerId'] as String;
           final role = msg['role'] as String;
-          peerTerminal = Terminal(maxLines: 10000);
-          peerTerminal!.resize(120, 80, 0, 0);
-          peerTerminal!.onOutput = (data) => sendInput(data);
+          peerTerminal = Terminal(maxLines: 10000)
+            ..resize(kInitialTerminalCols, kInitialTerminalRows, 0, 0)
+            ..onOutput = sendInput;
           state = state.copyWith(
             isActive: true,
             connecting: false,
@@ -363,9 +400,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
               Participant(
                 id: peerId,
                 name: 'You',
-                role: role == 'editor'
-                    ? SessionRole.editor
-                    : SessionRole.viewer,
+                role: SessionRole.parse(role),
               ),
             ],
           );
@@ -383,6 +418,11 @@ class SessionNotifier extends StateNotifier<SessionState> {
               ),
             ],
           );
+          // Re-broadcast current dims so the new peer renders at the
+          // host's actual size instead of the 80×24 fallback.
+          if (state.isHost && _lastCols != null && _lastRows != null) {
+            broadcastResize(_lastCols!, _lastRows!);
+          }
 
         case 'peer_left':
           final peerId = msg['peerId'] as String;
@@ -429,27 +469,16 @@ class SessionNotifier extends StateNotifier<SessionState> {
   }
 
   void _handleRoleChanged(Map<String, dynamic> msg) {
-    if (msg.containsKey('peerId')) {
-      // Host got confirmation of a peer's role change
-      final peerId = msg['peerId'] as String;
-      final role = _parseRole(msg['role'] as String);
-      state = state.copyWith(
-        participants: state.participants
-            .map((p) => p.id == peerId ? p.copyWith(role: role) : p)
-            .toList(),
-      );
-    } else {
-      // Peer got their own role changed
-      final role = _parseRole(msg['role'] as String);
-      final selfId = state.selfId;
-      if (selfId != null) {
-        state = state.copyWith(
-          participants: state.participants
-              .map((p) => p.id == selfId ? p.copyWith(role: role) : p)
-              .toList(),
-        );
-      }
-    }
+    final role = SessionRole.parse(msg['role'] as String);
+    // Host messages name the affected peer; peer-targeted messages omit
+    // peerId and refer to the receiving peer themselves.
+    final targetId = (msg['peerId'] as String?) ?? state.selfId;
+    if (targetId == null) return;
+    state = state.copyWith(
+      participants: state.participants
+          .map((p) => p.id == targetId ? p.copyWith(role: role) : p)
+          .toList(),
+    );
   }
 
   Future<void> _handleEncrypted(Map<String, dynamic> msg) async {
@@ -467,7 +496,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
           peerTerminal?.write(inner['data'] as String);
 
         case 'input':
-          onPeerInput?.call(inner['data'] as String);
+          _peerInputController.add(inner['data'] as String);
 
         case 'resize':
           peerTerminal?.resize(
@@ -480,12 +509,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
     } catch (_) {}
   }
 
-  static SessionRole _parseRole(String role) => switch (role) {
-        'editor' => SessionRole.editor,
-        'host' => SessionRole.host,
-        _ => SessionRole.viewer,
-      };
-
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
@@ -494,6 +517,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
     _send({'type': 'leave'});
     peerTerminal = null;
     _routingCode = null;
+    _lastCols = null;
+    _lastRows = null;
     _cleanup();
     state = const SessionState();
   }
@@ -512,6 +537,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
   @override
   void dispose() {
     _cleanup();
+    _peerInputController.close();
     super.dispose();
   }
 }

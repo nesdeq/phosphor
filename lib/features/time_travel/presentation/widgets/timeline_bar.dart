@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/crt_colors.dart';
 import '../../../../app/theme/phosphor_theme.dart';
+import '../../../../app/widgets/crt_button.dart';
 import '../../providers/timeline_provider.dart';
 
 /// Horizontal timeline scrubber bar at the bottom of the terminal.
@@ -11,16 +12,27 @@ class TimelineBar extends ConsumerWidget {
 
   static String _formatTime(int ms) {
     final totalSeconds = ms ~/ 1000;
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final mm = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final ss = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(phosphorPaletteProvider);
-    final colors = palette.colors;
+    final colors = ref.watch(phosphorPaletteProvider).colors;
     final timeline = ref.watch(timelineProvider);
+    final notifier = ref.read(timelineProvider.notifier);
+
+    Widget control(String label, VoidCallback onTap, {bool active = false}) =>
+        CrtButton(
+          label: label,
+          onTap: onTap,
+          filled: active,
+          dimBorder: true,
+          fontSize: 9,
+          width: 24,
+          height: 24,
+        );
 
     return Container(
       height: 48,
@@ -31,27 +43,20 @@ class TimelineBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          // Playback controls
-          _controlButton('|<', () => ref.read(timelineProvider.notifier).seekToStart(), colors),
+          control('|<', notifier.seekToStart),
           const SizedBox(width: 4),
-          _controlButton('<', () => ref.read(timelineProvider.notifier).stepBack(), colors),
+          control('<', notifier.stepBack),
           const SizedBox(width: 4),
-          _controlButton(
-            timeline.isPlaying ? '||' : '>',
-            () => ref.read(timelineProvider.notifier).togglePlay(),
-            colors,
-            active: timeline.isPlaying,
-          ),
+          control(timeline.isPlaying ? '||' : '>', notifier.togglePlay,
+              active: timeline.isPlaying),
           const SizedBox(width: 4),
-          _controlButton('>', () => ref.read(timelineProvider.notifier).stepForward(), colors),
+          control('>', notifier.stepForward),
           const SizedBox(width: 4),
-          _controlButton('>|', () {
-            ref.read(timelineProvider.notifier).seekToEnd();
-          }, colors),
+          control('>|', notifier.seekToEnd),
           const SizedBox(width: 12),
           // Speed
           GestureDetector(
-            onTap: () => ref.read(timelineProvider.notifier).cycleSpeed(),
+            onTap: notifier.cycleSpeed,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
@@ -59,29 +64,24 @@ class TimelineBar extends ConsumerWidget {
               ),
               child: Text(
                 '${timeline.speed}x',
-                style: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 10,
-                  color: colors.text,
-                ),
+                style: TextStyle(fontSize: 10, color: colors.text),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // Replay indicator / LIVE button
+          // LIVE button (only while replaying)
           if (timeline.isReplaying)
             GestureDetector(
-              onTap: () => ref.read(timelineProvider.notifier).exitReplayMode(),
+              onTap: notifier.exitReplayMode,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF3333),
-                  border: Border.all(color: const Color(0xFFFF3333)),
+                  color: crtErrorRed,
+                  border: Border.all(color: crtErrorRed),
                 ),
                 child: Text(
                   'LIVE',
                   style: TextStyle(
-                    fontFamily: 'PhosphorMono',
                     fontSize: 10,
                     color: colors.background,
                     fontWeight: FontWeight.bold,
@@ -90,27 +90,19 @@ class TimelineBar extends ConsumerWidget {
               ),
             ),
           const SizedBox(width: 8),
-          // Current time
           Text(
             _formatTime(timeline.currentTimeMs),
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 10,
-              color: colors.text,
-            ),
+            style: TextStyle(fontSize: 10, color: colors.text),
           ),
           const SizedBox(width: 8),
           // Scrubber
           Expanded(
             child: SliderTheme(
               data: SliderThemeData(
-                activeTrackColor: timeline.isReplaying
-                    ? const Color(0xFFFF3333)
-                    : colors.text,
+                activeTrackColor:
+                    timeline.isReplaying ? crtErrorRed : colors.text,
                 inactiveTrackColor: colors.textDim.withValues(alpha: 0.3),
-                thumbColor: timeline.isReplaying
-                    ? const Color(0xFFFF3333)
-                    : colors.text,
+                thumbColor: timeline.isReplaying ? crtErrorRed : colors.text,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                 trackHeight: 2,
                 overlayShape: SliderComponentShape.noOverlay,
@@ -119,51 +111,16 @@ class TimelineBar extends ConsumerWidget {
                 value: timeline.currentTimeMs.toDouble(),
                 min: 0,
                 max: timeline.durationMs.toDouble().clamp(1, double.infinity),
-                onChanged: (v) => ref
-                    .read(timelineProvider.notifier)
-                    .seekTo(v.round()),
+                onChanged: (v) => notifier.seekTo(v.round()),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // Total duration
           Text(
             _formatTime(timeline.durationMs),
-            style: TextStyle(
-              fontFamily: 'PhosphorMono',
-              fontSize: 10,
-              color: colors.textDim,
-            ),
+            style: TextStyle(fontSize: 10, color: colors.textDim),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _controlButton(
-    String label,
-    VoidCallback onTap,
-    CrtColorScheme colors, {
-    bool active = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active ? colors.text : Colors.transparent,
-          border: Border.all(color: colors.textDim, width: 1),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'PhosphorMono',
-            fontSize: 9,
-            color: active ? colors.background : colors.text,
-          ),
-        ),
       ),
     );
   }

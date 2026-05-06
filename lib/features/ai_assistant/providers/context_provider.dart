@@ -26,7 +26,8 @@ class ShellContext {
 
     buf.writeln('=== SHELL CONTEXT ===');
     buf.writeln('Shell: ${userEnvironment['SHELL'] ?? 'unknown'}');
-    buf.writeln('OS: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
+    buf.writeln(
+        'OS: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}');
     buf.writeln('CWD: ${session.workingDirectory}');
 
     if (projectType != null && projectType != ProjectType.unknown) {
