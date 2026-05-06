@@ -19,7 +19,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
 
   # Routing
-  go_router: ^14.8.1
+  go_router: ^17.2.3
 
   # Shader utilities
   flutter_shaders: ^0.1.3
