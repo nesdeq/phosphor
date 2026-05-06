@@ -20,14 +20,11 @@ class AiChatMessage {
 
 /// Chat message history for the AI side panel.
 final aiChatProvider =
-    StateNotifierProvider<AiChatNotifier, List<AiChatMessage>>((ref) {
-  return AiChatNotifier(ref);
-});
+    NotifierProvider<AiChatNotifier, List<AiChatMessage>>(AiChatNotifier.new);
 
-class AiChatNotifier extends StateNotifier<List<AiChatMessage>> {
-  final Ref _ref;
-
-  AiChatNotifier(this._ref) : super([]);
+class AiChatNotifier extends Notifier<List<AiChatMessage>> {
+  @override
+  List<AiChatMessage> build() => [];
 
   Future<void> sendMessage(String text) async {
     state = [
@@ -35,37 +32,22 @@ class AiChatNotifier extends StateNotifier<List<AiChatMessage>> {
       AiChatMessage(role: ChatRole.user, content: text),
     ];
 
-    final aiService = _ref.read(aiServiceProvider);
+    final aiService = ref.read(aiServiceProvider);
     try {
-      // Build shell context for the AI (use cached providers, not raw scans)
-      final shellContext = _ref.read(shellContextProvider);
-      final tools = await _ref.read(toolRegistryProvider.future);
-      final projectType = await _ref.read(projectTypeProvider.future);
-
-      final contextStr = shellContext.buildContextString(
+      // Build shell context — passed via the system prompt, not fake turns.
+      final shellContext = ref.read(shellContextProvider);
+      final tools = await ref.read(toolRegistryProvider.future);
+      final projectType = await ref.read(projectTypeProvider.future);
+      final extraSystem = shellContext.buildContextString(
         tools: tools,
         projectType: projectType,
       );
 
-      // Prepend context to the first user message
       final messages = state
           .map((m) => {'role': m.role.name, 'content': m.content})
           .toList();
 
-      // Inject context into the system via the first message
-      if (messages.isNotEmpty) {
-        messages.insert(0, {
-          'role': 'user',
-          'content': contextStr,
-        });
-        messages.insert(1, {
-          'role': 'assistant',
-          'content':
-              'I have your shell context. How can I help?',
-        });
-      }
-
-      final response = await aiService.chat(messages);
+      final response = await aiService.chat(messages, extraSystem: extraSystem);
       state = [
         ...state,
         AiChatMessage(role: ChatRole.assistant, content: response),

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../app/theme/crt_colors.dart';
 import '../../../../app/theme/phosphor_theme.dart';
+import '../../../../app/widgets/crt_button.dart';
 import '../../../../app/widgets/crt_dialog.dart';
+import '../../../../app/widgets/crt_text_field.dart';
 import '../../../../core/services/ai_service.dart';
-import '../../../../core/services/sound_service.dart';
 
 /// Cmd+K command palette — natural language to shell command.
 class CommandPalette extends ConsumerStatefulWidget {
@@ -28,7 +28,6 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
   String? _generatedCommand;
   bool _loading = false;
   String? _error;
-  int _prevInputLength = 0;
 
   @override
   void initState() {
@@ -54,12 +53,10 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
     });
 
     try {
-      final aiService = ref.read(aiServiceProvider);
-      final response = await aiService.chat([
+      final response = await ref.read(aiServiceProvider).chat([
         {
           'role': 'user',
-          'content':
-              'Generate a single shell command for: $query\n\n'
+          'content': 'Generate a single shell command for: $query\n\n'
               'Return ONLY the command, no explanation, no markdown, no backticks.'
         },
       ]);
@@ -84,66 +81,23 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
       width: 500,
       onClose: widget.onClose,
       children: [
-        // Input
         Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Text(
-                '> ',
-                style: TextStyle(
-                  fontFamily: 'PhosphorMono',
-                  fontSize: 14,
-                  color: colors.text,
-                ),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  onSubmitted: (_) {
-                    ref.read(soundServiceProvider).playKeystroke(char: '\r');
-                    _generate();
-                  },
-                  onChanged: (value) {
-                    _prevInputLength = ref
-                        .read(soundServiceProvider)
-                        .handleTextFieldKeystroke(
-                            _prevInputLength, value);
-                  },
-                  style: TextStyle(
-                    fontFamily: 'PhosphorMono',
-                    fontSize: 14,
-                    color: colors.text,
-                  ),
-                  cursorColor: colors.cursor,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    hintText: 'Describe what you want to do...',
-                    hintStyle: TextStyle(
-                      fontFamily: 'PhosphorMono',
-                      fontSize: 14,
-                      color: colors.textDim,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          child: CrtTextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            prefix: '> ',
+            fontSize: 14,
+            hintText: 'Describe what you want to do...',
+            onSubmitted: (_) => _generate(),
           ),
         ),
-        // Result
         if (_loading)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
               'Generating...',
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 12,
-                color: colors.textDim,
-              ),
+              style: TextStyle(fontSize: 12, color: colors.textDim),
             ),
           ),
         if (_generatedCommand != null)
@@ -160,25 +114,25 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
                   ),
                   child: Text(
                     '\$ $_generatedCommand',
-                    style: TextStyle(
-                      fontFamily: 'PhosphorMono',
-                      fontSize: 13,
-                      color: colors.text,
-                    ),
+                    style: TextStyle(fontSize: 13, color: colors.text),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _paletteButton('CANCEL', widget.onClose, colors,
-                        primary: false),
+                    CrtButton(
+                      label: 'CANCEL',
+                      onTap: widget.onClose,
+                      fontSize: 12,
+                    ),
                     const SizedBox(width: 8),
-                    _paletteButton(
-                        'RUN',
-                        () => widget.onSubmit(_generatedCommand!),
-                        colors,
-                        primary: true),
+                    CrtButton(
+                      label: 'RUN',
+                      onTap: () => widget.onSubmit(_generatedCommand!),
+                      filled: true,
+                      fontSize: 12,
+                    ),
                   ],
                 ),
               ],
@@ -189,40 +143,10 @@ class _CommandPaletteState extends ConsumerState<CommandPalette> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Text(
               _error!,
-              style: TextStyle(
-                fontFamily: 'PhosphorMono',
-                fontSize: 11,
-                color: colors.textDim,
-              ),
+              style: TextStyle(fontSize: 11, color: colors.textDim),
             ),
           ),
       ],
-    );
-  }
-
-  Widget _paletteButton(
-    String label,
-    VoidCallback onTap,
-    CrtColorScheme colors, {
-    required bool primary,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: primary ? colors.text : Colors.transparent,
-          border: Border.all(color: colors.text),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'PhosphorMono',
-            fontSize: 12,
-            color: primary ? colors.background : colors.text,
-          ),
-        ),
-      ),
     );
   }
 }

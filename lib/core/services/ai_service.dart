@@ -17,8 +17,7 @@ enum AiProvider {
   final String defaultBaseUrl;
 
   /// Read API key from user's shell environment.
-  String get apiKey =>
-      envKey.isNotEmpty ? (userEnvironment[envKey] ?? '') : '';
+  String get apiKey => envKey.isNotEmpty ? (userEnvironment[envKey] ?? '') : '';
 
   bool get hasKey => apiKey.isNotEmpty || this == AiProvider.ollama;
 }
@@ -64,9 +63,15 @@ class AiConfig {
   }
 }
 
-final aiConfigProvider = StateProvider<AiConfig>((ref) {
-  return AiConfig.fromEnvironment();
-});
+final aiConfigProvider =
+    NotifierProvider<AiConfigNotifier, AiConfig>(AiConfigNotifier.new);
+
+class AiConfigNotifier extends Notifier<AiConfig> {
+  @override
+  AiConfig build() => AiConfig.fromEnvironment();
+
+  void set(AiConfig config) => state = config;
+}
 
 /// Fetches models for ALL providers once on startup, caches the results.
 /// No re-fetching on provider switch — just a map lookup.
@@ -131,10 +136,8 @@ class AiService {
         .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) return [];
     final data = jsonDecode(response.body);
-    final models = (data['data'] as List?)
-            ?.map((m) => m['id'] as String)
-            .toList() ??
-        [];
+    final models =
+        (data['data'] as List?)?.map((m) => m['id'] as String).toList() ?? [];
     models.sort();
     return models;
   }
@@ -148,10 +151,9 @@ class AiService {
       if (response.statusCode != 200) return [];
 
       final data = jsonDecode(response.body);
-      final models = (data['models'] as List?)
-              ?.map((m) => m['name'] as String)
-              .toList() ??
-          [];
+      final models =
+          (data['models'] as List?)?.map((m) => m['name'] as String).toList() ??
+              [];
       models.sort();
       return models;
     } catch (_) {
@@ -169,28 +171,43 @@ class AiService {
       '- Warn about destructive operations (rm -rf, dd, etc). '
       '- If you don\'t know something, say so. Don\'t hallucinate flags.';
 
-  Future<String> chat(List<Map<String, String>> messages) async {
+  /// Send chat messages. [extraSystem] is appended to the base system prompt
+  /// — used to inject shell context cleanly instead of fake user/assistant
+  /// turns. Always throws on failure (HTTP, missing config, etc).
+  Future<String> chat(
+    List<Map<String, String>> messages, {
+    String? extraSystem,
+  }) async {
     if (!config.provider.hasKey) {
-      return 'No API key found.\n\n'
-          'Set one of these environment variables:\n'
-          '  export ANTHROPIC_API_KEY="sk-ant-..."\n'
-          '  export OPENAI_API_KEY="sk-..."\n\n'
-          'Then relaunch PHOSPHOR.';
+      throw StateError(
+        'No API key found.\n\n'
+        'Set one of these environment variables:\n'
+        '  export ANTHROPIC_API_KEY="sk-ant-..."\n'
+        '  export OPENAI_API_KEY="sk-..."\n\n'
+        'Then relaunch PHOSPHOR.',
+      );
+    }
+    if (config.model.isEmpty) {
+      throw StateError(
+        'No model selected.\n\nOpen Settings (Cmd+,) and pick a model.',
+      );
     }
 
-    if (config.model.isEmpty) {
-      return 'No model selected.\n\n'
-          'Open Settings (Cmd+,) and pick a model.';
-    }
+    final system = extraSystem == null || extraSystem.isEmpty
+        ? _systemPrompt
+        : '$_systemPrompt\n\n$extraSystem';
 
     return switch (config.provider) {
-      AiProvider.anthropic => _chatAnthropic(messages),
-      AiProvider.openai => _chatOpenAI(messages),
-      AiProvider.ollama => _chatOllama(messages),
+      AiProvider.anthropic => _chatAnthropic(messages, system),
+      AiProvider.openai => _chatOpenAI(messages, system),
+      AiProvider.ollama => _chatOllama(messages, system),
     };
   }
 
-  Future<String> _chatAnthropic(List<Map<String, String>> messages) async {
+  Future<String> _chatAnthropic(
+    List<Map<String, String>> messages,
+    String system,
+  ) async {
     final response = await http
         .post(
           Uri.parse('${config.baseUrl}/v1/messages'),
@@ -202,15 +219,14 @@ class AiService {
           body: jsonEncode({
             'model': config.model,
             'max_tokens': 1024,
-            'system': _systemPrompt,
+            'system': system,
             'messages': messages,
           }),
         )
         .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
-      throw Exception(
-          'Anthropic ${response.statusCode}: ${response.body}');
+      throw Exception('Anthropic ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body);
@@ -226,9 +242,12 @@ class AiService {
         model.startsWith('o4');
   }
 
-  Future<String> _chatOpenAI(List<Map<String, String>> messages) async {
+  Future<String> _chatOpenAI(
+    List<Map<String, String>> messages,
+    String system,
+  ) async {
     final allMessages = [
-      {'role': 'system', 'content': _systemPrompt},
+      {'role': 'system', 'content': system},
       ...messages,
     ];
 
@@ -246,23 +265,28 @@ class AiService {
             'messages': allMessages,
             // GPT-5 and reasoning models require max_completion_tokens;
             // they reject the legacy max_tokens parameter entirely.
-            if (reasoning) 'max_completion_tokens': 8192 else 'max_tokens': 1024,
+            if (reasoning)
+              'max_completion_tokens': 8192
+            else
+              'max_tokens': 1024,
           }),
         )
         .timeout(const Duration(seconds: 30));
 
     if (response.statusCode != 200) {
-      throw Exception(
-          'OpenAI ${response.statusCode}: ${response.body}');
+      throw Exception('OpenAI ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body);
     return data['choices'][0]['message']['content'] as String;
   }
 
-  Future<String> _chatOllama(List<Map<String, String>> messages) async {
+  Future<String> _chatOllama(
+    List<Map<String, String>> messages,
+    String system,
+  ) async {
     final allMessages = [
-      {'role': 'system', 'content': _systemPrompt},
+      {'role': 'system', 'content': system},
       ...messages,
     ];
 
@@ -279,8 +303,7 @@ class AiService {
         .timeout(const Duration(seconds: 60));
 
     if (response.statusCode != 200) {
-      throw Exception(
-          'Ollama ${response.statusCode}: ${response.body}');
+      throw Exception('Ollama ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body);

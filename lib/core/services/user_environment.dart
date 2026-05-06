@@ -34,8 +34,7 @@ Future<void> loadUserEnvironment() async {
         }
       }
       if (env.isNotEmpty) {
-        userEnvironment =
-            Map.unmodifiable({...Platform.environment, ...env});
+        userEnvironment = Map.unmodifiable({...Platform.environment, ...env});
       }
     }
   } catch (_) {

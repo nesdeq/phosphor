@@ -11,12 +11,22 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/nesdeq/phosphor/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.1.6-blue?logo=github"></a>
+  <a href="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nesdeq/phosphor/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="LICENSE"><img alt="License: GPL-2.0" src="https://img.shields.io/badge/license-GPL--2.0-blue"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue">
+  <img alt="Built with Flutter" src="https://img.shields.io/badge/built_with-Flutter-02569B?logo=flutter">
+</p>
+
+<p align="center">
   <a href="#share-your-terminal">Share</a> &middot;
   <a href="#rewind-everything">Rewind</a> &middot;
   <a href="#just-ask">Just Ask</a> &middot;
   <a href="#the-look">The Look</a> &middot;
   <a href="#install">Install</a> &middot;
-  <a href="#run-your-own-relay">Self-Host</a>
+  <a href="#run-your-own-relay">Self-Host</a> &middot;
+  <a href="#how-phosphor-compares">Compare</a> &middot;
+  <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
 ---
@@ -113,21 +123,19 @@ Audio to match: IBM Model M keystrokes on every keypress, CRT power-on, ambient 
 
 ### Prebuilt releases (recommended)
 
-Download the latest release from the [Releases page](https://github.com/nesdeq/phosphor/releases).
+Download the latest release from the [Releases page](https://github.com/nesdeq/phosphor/releases). Each release ships SHA256 checksums (`SHA256SUMS.txt`) — verify with `sha256sum -c SHA256SUMS.txt`.
 
-**macOS (Apple Silicon):**
+**macOS** — Apple Silicon (`phosphor-macos-arm64.zip`).
 
-1. Download `phosphor-macos-arm64.zip`
-2. Unzip and drag `Phosphor.app` to Applications
-3. Remove the quarantine attribute (required for unsigned apps):
+1. Unzip and drag `Phosphor.app` to Applications
+2. Remove the quarantine attribute (required for unsigned apps):
    ```bash
    xattr -dr com.apple.quarantine /Applications/Phosphor.app
    ```
 
-**Linux (x86_64):**
+**Linux** — x86_64 (`phosphor-linux-x86_64.tar.gz`). ARM64 is not yet pre-built — Flutter does not currently publish an aarch64 Linux SDK. Build from source (see below) on ARM hardware.
 
-1. Download `phosphor-linux-x86_64.tar.gz`
-2. Extract and run the installer:
+1. Extract and run the installer:
    ```bash
    tar xzf phosphor-linux-x86_64.tar.gz
    ./install.sh
@@ -214,8 +222,43 @@ PHOSPHOR uses the certificate to verify it's talking to the right server (certif
 
 ---
 
+## How PHOSPHOR Compares
+
+| | **PHOSPHOR** | Warp | iTerm2 | kitty / alacritty |
+|---|---|---|---|---|
+| Real shell, real PTY | ✅ | ✅ | ✅ | ✅ |
+| Live session sharing | ✅ E2E | ✅ cloud | ❌ | ❌ |
+| Self-hostable relay | ✅ | ❌ | n/a | n/a |
+| Time-travel replay | ✅ | partial | ❌ | ❌ |
+| Inline AI command palette | ✅ multi-provider | ✅ Warp's only | ❌ | ❌ |
+| Local-only AI (Ollama) | ✅ | ❌ | ❌ | ❌ |
+| Works fully offline | ✅ (no AI) | ❌ requires login | ✅ | ✅ |
+| CRT shader aesthetic | ✅ tunable | ❌ | partial | ❌ |
+| License | GPL-2.0 | proprietary | GPL-2.0 | GPLv3 / Apache 2.0 |
+| macOS + Linux | ✅ | ✅ | macOS only | ✅ |
+
+PHOSPHOR's bet: collaboration and recall belong in the terminal itself, not in a separate "modern terminal" silo, and the AI features should never require sending your shell to someone else's cloud.
+
+---
+
+## Project Status
+
+PHOSPHOR is **pre-1.0**. The core loop — terminal, sharing, recording, AI — works. We're still tightening edges, expanding test coverage, and gathering feedback before locking the API surface.
+
+- **Latest release:** see the [release badge](https://github.com/nesdeq/phosphor/releases/latest) at the top of this page
+- **Roadmap:** tracked in [GitHub Issues](https://github.com/nesdeq/phosphor/issues) — sort by `enhancement` label
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Security:** [SECURITY.md](SECURITY.md) — please disclose privately
+- **Code of Conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+If you find a bug, [open an issue](https://github.com/nesdeq/phosphor/issues/new/choose). If you want to chat, ideas welcome in [Discussions](https://github.com/nesdeq/phosphor/discussions).
+
+---
+
 ## License
 
 GPL-2.0 — see [LICENSE](LICENSE).
 
 Audio: [bucklespring](https://github.com/zevv/bucklespring) (GPL-2.0), [freesound.org](https://freesound.org) (CC-BY 4.0, CC0).
+Fonts: [3270 Nerd Font](https://github.com/rbanffy/3270font), [Departure Mono](https://departuremono.com), [JetBrains Mono](https://www.jetbrains.com/lp/mono/) — all SIL OFL or Apache 2.0, patched by [Nerd Fonts](https://www.nerdfonts.com).

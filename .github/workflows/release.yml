@@ -10,13 +10,17 @@ permissions:
 
 jobs:
   build-macos:
+    name: macOS (arm64)
     runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      ARTIFACT: phosphor-macos-arm64.zip
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - run: flutter config --enable-macos-desktop
       - run: flutter pub get
@@ -25,26 +29,35 @@ jobs:
       - name: Zip macOS app
         run: |
           cd build/macos/Build/Products/Release
-          zip -r phosphor-macos-arm64.zip Phosphor.app
+          zip -ry "${ARTIFACT}" Phosphor.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: macos-build
-          path: build/macos/Build/Products/Release/phosphor-macos-arm64.zip
+          name: macos-arm64
+          path: build/macos/Build/Products/Release/${{ env.ARTIFACT }}
 
   build-linux:
+    name: Linux (x86_64)
+    # ARM64 Linux release builds are blocked on upstream Flutter publishing
+    # aarch64 SDKs. Re-add `ubuntu-24.04-arm` once subosito/flutter-action
+    # can fetch a working SDK there.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ARTIFACT: phosphor-linux-x86_64.tar.gz
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
@@ -52,54 +65,82 @@ jobs:
 
       - name: Archive Linux bundle
         run: |
-          cp linux/install.sh build/linux/x64/release/bundle/
-          cd build/linux/x64/release/bundle
-          tar czf phosphor-linux-x86_64.tar.gz *
+          cp linux/install.sh build/linux/*/release/bundle/ || true
+          cd build/linux/*/release/bundle
+          tar czf "${ARTIFACT}" *
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: linux-build
-          path: build/linux/x64/release/bundle/phosphor-linux-x86_64.tar.gz
+          name: linux-x86_64
+          path: build/linux/*/release/bundle/${{ env.ARTIFACT }}
 
   release:
+    name: Publish release
     needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
-          name: macos-build
+          path: artifacts
+          merge-multiple: true
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: linux-build
+      - name: Compute SHA256 checksums
+        id: sums
+        run: |
+          cd artifacts
+          ls -la
+          sha256sum phosphor-macos-arm64.zip \
+                    phosphor-linux-x86_64.tar.gz \
+                    > SHA256SUMS.txt
+          {
+            echo 'sums<<EOF'
+            cat SHA256SUMS.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            phosphor-macos-arm64.zip
-            phosphor-linux-x86_64.tar.gz
+            artifacts/phosphor-macos-arm64.zip
+            artifacts/phosphor-linux-x86_64.tar.gz
+            artifacts/SHA256SUMS.txt
           generate_release_notes: true
           body: |
             ## Install
 
             ### macOS (Apple Silicon)
 
-            1. Download `phosphor-macos-arm64.zip`
-            2. Unzip it
-            3. Drag `Phosphor.app` to your Applications folder
-            4. Remove the quarantine attribute (required for unsigned apps):
+            Download `phosphor-macos-arm64.zip`.
+
+            1. Unzip the archive
+            2. Drag `Phosphor.app` to `/Applications`
+            3. Remove the quarantine attribute (the binary is unsigned):
                ```bash
                xattr -dr com.apple.quarantine /Applications/Phosphor.app
                ```
 
             ### Linux (x86_64)
 
-            1. Download `phosphor-linux-x86_64.tar.gz`
-            2. Extract and run the installer:
-               ```bash
-               tar xzf phosphor-linux-x86_64.tar.gz
-               ./install.sh
-               ```
-            3. This installs to `~/.local/share/phosphor/`, adds `phosphor` to your PATH via `~/.local/bin/`, and creates a desktop entry for your app launcher.
+            ARM64 Linux is not yet shipped — upstream Flutter does not publish an aarch64 SDK. Track [flutter/flutter#129143](https://github.com/flutter/flutter/issues/129143) or build from source.
+
+            ```bash
+            tar xzf phosphor-linux-x86_64.tar.gz
+            ./install.sh
+            ```
+
+            Installs to `~/.local/share/phosphor/`, adds `phosphor` to your PATH via `~/.local/bin/`, and creates a desktop entry.
+
+            ### Verify your download
+
+            ```text
+            ${{ steps.sums.outputs.sums }}
+            ```
+
+            Compare against `SHA256SUMS.txt` in this release:
+
+            ```bash
+            sha256sum -c SHA256SUMS.txt
+            ```
 
             ---

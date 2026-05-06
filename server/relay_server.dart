@@ -123,8 +123,8 @@ void main(List<String> args) async {
       if (current >= _maxConnectionsPerIp) {
         request.response
           ..statusCode = 429
-          ..write('Too many connections')
-          ..close();
+          ..write('Too many connections');
+        unawaited(request.response.close());
         continue;
       }
 
@@ -138,8 +138,8 @@ void main(List<String> args) async {
         ..write(jsonEncode({
           'service': 'PHOSPHOR Relay',
           'sessions': _sessions.length,
-        }))
-        ..close();
+        }));
+      unawaited(request.response.close());
     }
   }
 }
@@ -199,7 +199,10 @@ void _handleConnection(WebSocket socket, String ip) {
         final msg = jsonDecode(data as String) as Map<String, dynamic>;
         final type = msg['type'] as String;
 
-        if (!authenticated && type != 'host' && type != 'join' && type != 'pong') {
+        if (!authenticated &&
+            type != 'host' &&
+            type != 'join' &&
+            type != 'pong') {
           _sendJson(socket, {'type': 'error', 'message': 'Not authenticated'});
           return;
         }
@@ -253,7 +256,8 @@ void _handleMessage(
   }
 }
 
-void _onHost(String clientId, WebSocket socket, String ip, Map<String, dynamic> msg) {
+void _onHost(
+    String clientId, WebSocket socket, String ip, Map<String, dynamic> msg) {
   final code = msg['code'] as String;
 
   if (_sessions.containsKey(code)) {
@@ -268,7 +272,8 @@ void _onHost(String clientId, WebSocket socket, String ip, Map<String, dynamic> 
   // Per-IP session limit
   final ipSessions = _sessions.values.where((s) => s.hostIp == ip).length;
   if (ipSessions >= _maxSessionsPerIp) {
-    _sendJson(socket, {'type': 'error', 'message': 'Too many sessions from this IP'});
+    _sendJson(
+        socket, {'type': 'error', 'message': 'Too many sessions from this IP'});
     return;
   }
 

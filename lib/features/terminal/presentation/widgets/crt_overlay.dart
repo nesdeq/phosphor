@@ -27,12 +27,12 @@ class _CrtOverlayState extends ConsumerState<CrtOverlay>
   @override
   void initState() {
     super.initState();
-    _loadShader();
     _ticker = createTicker((elapsed) {
       setState(() {
         _time = elapsed.inMicroseconds / 1000000.0;
       });
-    })..start();
+    });
+    _loadShader();
   }
 
   Future<void> _loadShader() async {
@@ -56,15 +56,29 @@ class _CrtOverlayState extends ConsumerState<CrtOverlay>
     super.dispose();
   }
 
+  /// Start/stop the ticker after the build settles, based on whether we're
+  /// actually rendering effects this frame. Avoids 60 fps setState when the
+  /// shader is missing or intensity is 0.
+  void _syncTickerState(bool shouldTick) {
+    if (shouldTick == _ticker.isActive) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (shouldTick && !_ticker.isActive) {
+        _ticker.start();
+      } else if (!shouldTick && _ticker.isActive) {
+        _ticker.stop();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final intensity = ref.watch(crtIntensityProvider);
     final settings = ref.watch(crtSettingsProvider);
+    final shouldRender = _shader != null && intensity > 0.0;
+    _syncTickerState(shouldRender);
 
-    // No shader loaded or effects disabled — render child directly
-    if (_shader == null || intensity <= 0.0) {
-      return widget.child;
-    }
+    if (!shouldRender) return widget.child;
 
     return AnimatedSampler(
       enabled: true,

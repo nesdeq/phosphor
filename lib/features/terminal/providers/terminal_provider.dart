@@ -1,19 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_pty/flutter_pty.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:xterm/xterm.dart';
 
+import '../../../app/theme/crt_colors.dart';
 import '../../../core/services/event_store.dart';
 import '../../../core/services/session_service.dart';
 import '../../../core/services/sound_service.dart';
 import '../../../core/services/user_environment.dart';
 import '../../time_travel/providers/timeline_provider.dart';
-
-const _uuid = Uuid();
 
 /// Provides the terminal instance and PTY process.
 final terminalProvider = Provider.autoDispose<TerminalSession>((ref) {
@@ -24,19 +23,22 @@ final terminalProvider = Provider.autoDispose<TerminalSession>((ref) {
   final sessionState = ref.read(sessionProvider);
   final session = TerminalSession(
     eventStore: eventStore,
-    onEvent: () => timelineNotifier.recordEvent(),
+    onEvent: timelineNotifier.recordEvent,
     soundService: soundService,
     sessionNotifier: sessionNotifier,
     isMultiplayerHost: sessionState.isActive && sessionState.isHost,
   );
-  // Wire multiplayer peer input to PTY
-  sessionNotifier.onPeerInput = (data) => session.handlePeerInput(data);
+
+  // Pipe peer input straight into the host PTY.
+  final peerInputSub =
+      sessionNotifier.peerInputStream.listen(session.handlePeerInput);
+
   ref.onDispose(() {
-    sessionNotifier.onPeerInput = null;
+    peerInputSub.cancel();
     session.dispose();
   });
 
-  // Listen for multiplayer state changes to wire input relay
+  // Listen for multiplayer state changes to wire input relay.
   ref.listen<SessionState>(sessionProvider, (prev, next) {
     session.isMultiplayerHost = next.isActive && next.isHost;
   });
@@ -49,6 +51,7 @@ final terminalProvider = Provider.autoDispose<TerminalSession>((ref) {
 class TerminalSession {
   late final Terminal terminal;
   late final Pty pty;
+  StreamSubscription<List<int>>? _outputSub;
   final EventStore eventStore;
   final VoidCallback? onEvent;
   final SoundService soundService;
@@ -58,10 +61,10 @@ class TerminalSession {
   /// Strip ANSI escape sequences and control characters from terminal output
   /// so AI context and error detection see clean text.
   static final _ansiPattern = RegExp(
-    r'\x1B\[[0-9;]*[a-zA-Z]'   // CSI sequences (colors, cursor, etc.)
-    r'|\x1B\][^\x07]*\x07'     // OSC sequences (title setting, etc.)
+    r'\x1B\[[0-9;]*[a-zA-Z]' // CSI sequences (colors, cursor, etc.)
+    r'|\x1B\][^\x07]*\x07' // OSC sequences (title setting, etc.)
     r'|\x1B\[[\x30-\x3F]*[\x20-\x2F]*[\x40-\x7E]' // extended CSI
-    r'|\x1B[^[\]].?'           // other two-char escapes
+    r'|\x1B[^[\]].?' // other two-char escapes
     r'|[\x00-\x08\x0B\x0C\x0E-\x1F]', // control chars (keep \n \r \t)
   );
   static String _stripAnsi(String input) => input.replaceAll(_ansiPattern, '');
@@ -70,27 +73,22 @@ class TerminalSession {
   final List<String> recentOutput = [];
   static const _maxRecentOutput = 1000;
 
-  /// Buffer for detecting errors in output.
+  /// Buffer for detecting errors in output. Flushed on newline OR when it
+  /// exceeds [_outputBufferCap] (e.g. progress streams using only \r).
   String _outputBuffer = '';
-  static const _errorPatterns = [
-    'error:',
-    'Error:',
-    'ERROR:',
-    'fatal:',
-    'FATAL:',
-    'command not found',
-    'No such file or directory',
-    'Permission denied',
-    'segmentation fault',
-    'Traceback (most recent call last)',
-    'panic:',
-    'FAILED',
-    'npm ERR!',
-    'cargo error',
-    'SyntaxError:',
-    'TypeError:',
-    'ReferenceError:',
-  ];
+  static const _outputBufferCap = 64 * 1024;
+
+  /// Single regex compiled from all error patterns — checked once per
+  /// flushed buffer rather than 16 individual `contains` calls.
+  static final _errorRegex = RegExp(
+    r'(?:'
+    r'error:|Error:|ERROR:|fatal:|FATAL:|'
+    r'command not found|No such file or directory|Permission denied|'
+    r'segmentation fault|Traceback \(most recent call last\)|'
+    r'panic:|FAILED|npm ERR!|cargo error|'
+    r'SyntaxError:|TypeError:|ReferenceError:'
+    r')',
+  );
 
   /// Callback to report detected errors for AI auto-explanation.
   void Function(String error)? onErrorDetected;
@@ -111,13 +109,13 @@ class TerminalSession {
           ? TerminalTargetPlatform.macos
           : TerminalTargetPlatform.unknown,
     );
-    terminal.resize(120, 80, 0, 0);
+    terminal.resize(kInitialTerminalCols, kInitialTerminalRows, 0, 0);
     final home = userEnvironment['HOME'] ?? '/';
     pty = Pty.start(
       _defaultShell,
       arguments: const ['-l'],
-      columns: 120,
-      rows: 80,
+      columns: kInitialTerminalCols,
+      rows: kInitialTerminalRows,
       workingDirectory: home,
       environment: {
         ...userEnvironment,
@@ -127,13 +125,12 @@ class TerminalSession {
     );
 
     // Shell output (Uint8List) -> terminal state + event recording
-    pty.output.listen((data) {
+    _outputSub = pty.output.listen((data) {
       final decoded = utf8.decode(data, allowMalformed: true);
       terminal.write(decoded);
 
       // Record output event
       eventStore.record(TerminalEvent(
-        id: _uuid.v4(),
         type: EventType.output,
         timestamp: DateTime.now(),
         data: decoded,
@@ -153,9 +150,10 @@ class TerminalSession {
         sessionNotifier.broadcastOutput(decoded);
       }
 
-      // Error detection — buffer clean output and check for patterns
+      // Error detection — buffer clean output and check on newline or
+      // when the buffer exceeds the cap (handles \r-only progress streams).
       _outputBuffer += clean;
-      if (decoded.contains('\n')) {
+      if (decoded.contains('\n') || _outputBuffer.length > _outputBufferCap) {
         _checkForErrors(_outputBuffer);
         _outputBuffer = '';
       }
@@ -167,7 +165,6 @@ class TerminalSession {
 
       // Record input event
       eventStore.record(TerminalEvent(
-        id: _uuid.v4(),
         type: EventType.input,
         timestamp: DateTime.now(),
         data: data,
@@ -178,8 +175,9 @@ class TerminalSession {
       soundService.playKeystroke(char: data.isNotEmpty ? data[0] : null);
     };
 
-    // Terminal resize -> PTY resize + multiplayer broadcast
-    terminal.onResize = (width, height, pixelWidth, pixelHeight) {
+    // Terminal resize -> PTY resize + multiplayer broadcast.
+    // pixelWidth/pixelHeight are unused; xterm requires the 4-arg shape.
+    terminal.onResize = (width, height, _, __) {
       pty.resize(height, width);
       if (isMultiplayerHost) {
         sessionNotifier.broadcastResize(width, height);
@@ -191,19 +189,13 @@ class TerminalSession {
   void _checkForErrors(String output) {
     final now = DateTime.now();
     if (now.difference(_lastErrorTime).inSeconds < 3) return;
+    if (!_errorRegex.hasMatch(output)) return;
 
-    for (final pattern in _errorPatterns) {
-      if (output.contains(pattern)) {
-        final errorLines = output
-            .split('\n')
-            .where((l) => l.trim().isNotEmpty)
-            .take(10);
-        if (errorLines.isNotEmpty) {
-          _lastErrorTime = now;
-          onErrorDetected?.call(errorLines.join('\n'));
-        }
-        break;
-      }
+    final errorLines =
+        output.split('\n').where((l) => l.trim().isNotEmpty).take(10);
+    if (errorLines.isNotEmpty) {
+      _lastErrorTime = now;
+      onErrorDetected?.call(errorLines.join('\n'));
     }
   }
 
@@ -222,6 +214,7 @@ class TerminalSession {
   }
 
   void dispose() {
+    _outputSub?.cancel();
     pty.kill();
   }
 
