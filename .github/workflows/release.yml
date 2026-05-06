@@ -8,9 +8,42 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    name: Verify & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pubcache-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pubcache-${{ runner.os }}-
+      - name: Verify pubspec version matches tag
+        run: |
+          pubspec=$(grep -E '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//;s/+.*//')
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pubspec" != "$tag" ]; then
+            echo "::error::pubspec version ($pubspec) does not match tag ($tag)"
+            exit 1
+          fi
+      - run: flutter pub get
+      - run: dart format --set-exit-if-changed --output none .
+      - run: flutter analyze --fatal-infos --fatal-warnings
+      - run: flutter test --reporter expanded
+
   build-macos:
     name: macOS (arm64)
+    needs: [verify]
     runs-on: macos-latest
     timeout-minutes: 30
     env:
@@ -21,6 +54,11 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pubcache-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pubcache-${{ runner.os }}-
 
       - run: flutter config --enable-macos-desktop
       - run: flutter pub get
@@ -38,6 +76,7 @@ jobs:
 
   build-linux:
     name: Linux (x86_64)
+    needs: [verify]
     # ARM64 Linux release builds are blocked on upstream Flutter publishing
     # aarch64 SDKs. Re-add `ubuntu-24.04-arm` once subosito/flutter-action
     # can fetch a working SDK there.
@@ -51,6 +90,11 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pubcache-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pubcache-${{ runner.os }}-
 
       - name: Install Linux dependencies
         run: |
