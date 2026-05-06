@@ -49,7 +49,7 @@ class SettingsScreen extends ConsumerWidget {
                   'CRT Intensity',
                   ref.watch(crtIntensityProvider),
                   (v) {
-                    ref.read(crtIntensityProvider.notifier).state = v;
+                    ref.read(crtIntensityProvider.notifier).set(v);
                     n.setIntensity(v);
                   },
                   colors,
@@ -69,7 +69,7 @@ class SettingsScreen extends ConsumerWidget {
                   (p) => _radioRow(
                     p.label,
                     p == palette,
-                    () => ref.read(phosphorPaletteProvider.notifier).state = p,
+                    () => ref.read(phosphorPaletteProvider.notifier).set(p),
                     colors,
                     previewColor: p.colors.text,
                   ),
@@ -226,11 +226,11 @@ class SettingsScreen extends ConsumerWidget {
     final modelsAsync = ref.watch(availableModelsProvider);
     final hasKey = aiConfig.provider.hasKey;
 
-    void setProvider(AiProvider p) =>
-        ref.read(aiConfigProvider.notifier).state =
-            aiConfig.copyWith(provider: p, model: '');
+    void setProvider(AiProvider p) => ref
+        .read(aiConfigProvider.notifier)
+        .set(aiConfig.copyWith(provider: p, model: ''));
     void setModel(String m) =>
-        ref.read(aiConfigProvider.notifier).state = aiConfig.copyWith(model: m);
+        ref.read(aiConfigProvider.notifier).set(aiConfig.copyWith(model: m));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

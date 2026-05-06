@@ -6,7 +6,16 @@ import 'crt_colors.dart';
 
 /// Current phosphor palette selection.
 final phosphorPaletteProvider =
-    StateProvider<PhosphorPalette>((ref) => PhosphorPalette.green);
+    NotifierProvider<PhosphorPaletteNotifier, PhosphorPalette>(
+  PhosphorPaletteNotifier.new,
+);
+
+class PhosphorPaletteNotifier extends Notifier<PhosphorPalette> {
+  @override
+  PhosphorPalette build() => PhosphorPalette.green;
+
+  void set(PhosphorPalette palette) => state = palette;
+}
 
 /// Builds the app-wide ThemeData from the active phosphor palette and
 /// terminal font. Setting `fontFamily` on ThemeData cascades to every

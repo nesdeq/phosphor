@@ -63,9 +63,15 @@ class AiConfig {
   }
 }
 
-final aiConfigProvider = StateProvider<AiConfig>((ref) {
-  return AiConfig.fromEnvironment();
-});
+final aiConfigProvider =
+    NotifierProvider<AiConfigNotifier, AiConfig>(AiConfigNotifier.new);
+
+class AiConfigNotifier extends Notifier<AiConfig> {
+  @override
+  AiConfig build() => AiConfig.fromEnvironment();
+
+  void set(AiConfig config) => state = config;
+}
 
 /// Fetches models for ALL providers once on startup, caches the results.
 /// No re-fetching on provider switch — just a map lookup.

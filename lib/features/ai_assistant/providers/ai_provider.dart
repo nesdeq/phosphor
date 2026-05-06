@@ -20,14 +20,11 @@ class AiChatMessage {
 
 /// Chat message history for the AI side panel.
 final aiChatProvider =
-    StateNotifierProvider<AiChatNotifier, List<AiChatMessage>>((ref) {
-  return AiChatNotifier(ref);
-});
+    NotifierProvider<AiChatNotifier, List<AiChatMessage>>(AiChatNotifier.new);
 
-class AiChatNotifier extends StateNotifier<List<AiChatMessage>> {
-  final Ref _ref;
-
-  AiChatNotifier(this._ref) : super([]);
+class AiChatNotifier extends Notifier<List<AiChatMessage>> {
+  @override
+  List<AiChatMessage> build() => [];
 
   Future<void> sendMessage(String text) async {
     state = [
@@ -35,12 +32,12 @@ class AiChatNotifier extends StateNotifier<List<AiChatMessage>> {
       AiChatMessage(role: ChatRole.user, content: text),
     ];
 
-    final aiService = _ref.read(aiServiceProvider);
+    final aiService = ref.read(aiServiceProvider);
     try {
       // Build shell context — passed via the system prompt, not fake turns.
-      final shellContext = _ref.read(shellContextProvider);
-      final tools = await _ref.read(toolRegistryProvider.future);
-      final projectType = await _ref.read(projectTypeProvider.future);
+      final shellContext = ref.read(shellContextProvider);
+      final tools = await ref.read(toolRegistryProvider.future);
+      final projectType = await ref.read(projectTypeProvider.future);
       final extraSystem = shellContext.buildContextString(
         tools: tools,
         projectType: projectType,

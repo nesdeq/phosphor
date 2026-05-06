@@ -44,13 +44,10 @@ class TimelineState {
 }
 
 final timelineProvider =
-    StateNotifierProvider<TimelineNotifier, TimelineState>((ref) {
-  final eventStore = ref.read(eventStoreProvider);
-  return TimelineNotifier(eventStore);
-});
+    NotifierProvider<TimelineNotifier, TimelineState>(TimelineNotifier.new);
 
-class TimelineNotifier extends StateNotifier<TimelineState> {
-  final EventStore eventStore;
+class TimelineNotifier extends Notifier<TimelineState> {
+  late final EventStore eventStore;
   Timer? _playTimer;
   Timer? _seekDebounce;
 
@@ -66,7 +63,15 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   /// How far the replay terminal has been built up to (event index).
   int _replayedUpToIndex = 0;
 
-  TimelineNotifier(this.eventStore) : super(const TimelineState());
+  @override
+  TimelineState build() {
+    eventStore = ref.read(eventStoreProvider);
+    ref.onDispose(() {
+      _playTimer?.cancel();
+      _seekDebounce?.cancel();
+    });
+    return const TimelineState();
+  }
 
   /// Called by terminal_provider whenever an event is recorded.
   void recordEvent() {
@@ -287,12 +292,5 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     final next = speeds[(idx + 1) % speeds.length];
     state = state.copyWith(speed: next);
     // No need to restart timer — _onPlaybackTick reads speed from state each tick
-  }
-
-  @override
-  void dispose() {
-    _playTimer?.cancel();
-    _seekDebounce?.cancel();
-    super.dispose();
   }
 }

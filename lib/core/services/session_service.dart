@@ -100,11 +100,9 @@ class SessionState {
 }
 
 final sessionProvider =
-    StateNotifierProvider<SessionNotifier, SessionState>((ref) {
-  return SessionNotifier();
-});
+    NotifierProvider<SessionNotifier, SessionState>(SessionNotifier.new);
 
-class SessionNotifier extends StateNotifier<SessionState> {
+class SessionNotifier extends Notifier<SessionState> {
   WebSocket? _socket;
   StreamSubscription<dynamic>? _subscription;
   Timer? _pingTimer;
@@ -131,7 +129,14 @@ class SessionNotifier extends StateNotifier<SessionState> {
   Uint8List? _pinnedCertDer;
   String? _pinnedCertSource;
 
-  SessionNotifier() : super(const SessionState());
+  @override
+  SessionState build() {
+    ref.onDispose(() {
+      _cleanup();
+      _peerInputController.close();
+    });
+    return const SessionState();
+  }
 
   /// Parse PEM certificate text into DER bytes.
   static Uint8List? _parsePem(String pem) {
@@ -532,12 +537,5 @@ class SessionNotifier extends StateNotifier<SessionState> {
       _socket?.close();
     } catch (_) {}
     _socket = null;
-  }
-
-  @override
-  void dispose() {
-    _cleanup();
-    _peerInputController.close();
-    super.dispose();
   }
 }

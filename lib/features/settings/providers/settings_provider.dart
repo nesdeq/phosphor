@@ -8,7 +8,15 @@ import '../../../core/services/ai_service.dart';
 /// CRT effect intensity (0.0 = clean, 1.0 = maximum retro).
 /// Lives here (not in crt_overlay.dart) because settings state must not
 /// depend on presentation widgets.
-final crtIntensityProvider = StateProvider<double>((ref) => 0.75);
+final crtIntensityProvider =
+    NotifierProvider<CrtIntensityNotifier, double>(CrtIntensityNotifier.new);
+
+class CrtIntensityNotifier extends Notifier<double> {
+  @override
+  double build() => 0.75;
+
+  void set(double value) => state = value;
+}
 
 /// CRT effect settings — controls shader uniforms.
 class CrtSettings {
@@ -82,56 +90,55 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 
 /// Global CRT settings state with persistence.
 final crtSettingsProvider =
-    StateNotifierProvider<CrtSettingsNotifier, CrtSettings>((ref) {
-  final prefs = ref.watch(sharedPrefsProvider);
-  return CrtSettingsNotifier(prefs, ref);
-});
+    NotifierProvider<CrtSettingsNotifier, CrtSettings>(CrtSettingsNotifier.new);
 
-class CrtSettingsNotifier extends StateNotifier<CrtSettings> {
-  final SharedPreferences _prefs;
-  final Ref _ref;
+class CrtSettingsNotifier extends Notifier<CrtSettings> {
+  late final SharedPreferences _prefs;
 
-  CrtSettingsNotifier(this._prefs, this._ref)
-      : super(CrtSettings(
-          intensity: _prefs.getDouble('crt_intensity') ?? 0.75,
-          scanlines: _prefs.getBool('crt_scanlines') ?? true,
-          curvature: _prefs.getBool('crt_curvature') ?? true,
-          chromaticAberration: _prefs.getBool('crt_chromatic') ?? true,
-          flicker: _prefs.getBool('crt_flicker') ?? true,
-          soundVolume: _prefs.getDouble('sound_volume') ?? 0.5,
-          keyboardSounds: _prefs.getBool('keyboard_sounds') ?? true,
-          bootSound: _prefs.getBool('boot_sound') ?? true,
-          ambientHum: _prefs.getBool('ambient_hum') ?? true,
-          fontScale: _prefs.getDouble('font_scale') ?? 1.5,
-          terminalFont: TerminalFont.values[
-              (_prefs.getInt('terminal_font') ?? 0)
-                  .clamp(0, TerminalFont.values.length - 1)],
-          relayServerUrl: _prefs.getString('relay_server_url') ?? '',
-          relayCertPath: _prefs.getString('relay_cert_path') ?? '',
-        )) {
-    _hydrateSiblingProviders();
+  @override
+  CrtSettings build() {
+    _prefs = ref.read(sharedPrefsProvider);
+    final initial = CrtSettings(
+      intensity: _prefs.getDouble('crt_intensity') ?? 0.75,
+      scanlines: _prefs.getBool('crt_scanlines') ?? true,
+      curvature: _prefs.getBool('crt_curvature') ?? true,
+      chromaticAberration: _prefs.getBool('crt_chromatic') ?? true,
+      flicker: _prefs.getBool('crt_flicker') ?? true,
+      soundVolume: _prefs.getDouble('sound_volume') ?? 0.5,
+      keyboardSounds: _prefs.getBool('keyboard_sounds') ?? true,
+      bootSound: _prefs.getBool('boot_sound') ?? true,
+      ambientHum: _prefs.getBool('ambient_hum') ?? true,
+      fontScale: _prefs.getDouble('font_scale') ?? 1.5,
+      terminalFont: TerminalFont.values[(_prefs.getInt('terminal_font') ?? 0)
+          .clamp(0, TerminalFont.values.length - 1)],
+      relayServerUrl: _prefs.getString('relay_server_url') ?? '',
+      relayCertPath: _prefs.getString('relay_cert_path') ?? '',
+    );
+    _hydrateSiblingProviders(initial);
     _wireSiblingPersistence();
+    return initial;
   }
 
   /// Restore palette + AI config + intensity into their own providers.
   /// Deferred to a microtask because their notifiers may not be reachable
   /// during this notifier's own construction.
-  void _hydrateSiblingProviders() {
+  void _hydrateSiblingProviders(CrtSettings initial) {
     Future.microtask(() {
-      _ref.read(crtIntensityProvider.notifier).state = state.intensity;
+      ref.read(crtIntensityProvider.notifier).set(initial.intensity);
 
       final paletteIdx = _prefs.getInt('phosphor_palette');
       if (paletteIdx != null && paletteIdx < PhosphorPalette.values.length) {
-        _ref.read(phosphorPaletteProvider.notifier).state =
-            PhosphorPalette.values[paletteIdx];
+        ref
+            .read(phosphorPaletteProvider.notifier)
+            .set(PhosphorPalette.values[paletteIdx]);
       }
 
       final providerIdx = _prefs.getInt('ai_provider');
       if (providerIdx != null && providerIdx < AiProvider.values.length) {
-        _ref.read(aiConfigProvider.notifier).state = AiConfig(
-          provider: AiProvider.values[providerIdx],
-          model: _prefs.getString('ai_model') ?? '',
-        );
+        ref.read(aiConfigProvider.notifier).set(AiConfig(
+              provider: AiProvider.values[providerIdx],
+              model: _prefs.getString('ai_model') ?? '',
+            ));
       }
     });
   }
@@ -139,11 +146,11 @@ class CrtSettingsNotifier extends StateNotifier<CrtSettings> {
   /// AI config and palette live in separate providers; mirror their
   /// changes back to disk so the persistence model stays uniform.
   void _wireSiblingPersistence() {
-    _ref.listen<AiConfig>(aiConfigProvider, (_, next) {
+    ref.listen<AiConfig>(aiConfigProvider, (_, next) {
       _prefs.setInt('ai_provider', next.provider.index);
       _prefs.setString('ai_model', next.model);
     });
-    _ref.listen<PhosphorPalette>(phosphorPaletteProvider, (_, next) {
+    ref.listen<PhosphorPalette>(phosphorPaletteProvider, (_, next) {
       _prefs.setInt('phosphor_palette', next.index);
     });
   }

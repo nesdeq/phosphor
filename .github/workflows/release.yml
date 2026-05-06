@@ -24,7 +24,7 @@ jobs:
             runner: macos-13
             artifact: phosphor-macos-x86_64.zip
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -39,7 +39,7 @@ jobs:
           cd build/macos/Build/Products/Release
           zip -ry "${{ matrix.artifact }}" Phosphor.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-${{ matrix.arch }}
           path: build/macos/Build/Products/Release/${{ matrix.artifact }}
@@ -54,7 +54,7 @@ jobs:
     env:
       ARTIFACT: phosphor-linux-x86_64.tar.gz
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -77,7 +77,7 @@ jobs:
           cd build/linux/*/release/bundle
           tar czf "${ARTIFACT}" *
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-x86_64
           path: build/linux/*/release/bundle/${{ env.ARTIFACT }}
@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
